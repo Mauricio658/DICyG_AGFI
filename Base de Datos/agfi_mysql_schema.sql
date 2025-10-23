@@ -2,10 +2,10 @@
 # MySQL 8.0 esquema para "Lista de Asistencia - Desayuno Asamblea Ordinaria AGFI"
 # ===============================================================
 
-CREATE DATABASE IF NOT EXISTS agfi
+CREATE DATABASE IF NOT EXISTS Sistema_AGFI
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_0900_ai_ci;
-USE agfi;
+USE Sistema_AGFI;
 
 # ===============================================================
 # 1) Datos principales
@@ -55,8 +55,6 @@ CREATE TABLE registros (
   id_asistente    BIGINT UNSIGNED NOT NULL,     # FK asistente
   asistencia      ENUM('si','no','tal_vez','desconocido') DEFAULT 'desconocido',
   invitados       TINYINT UNSIGNED DEFAULT 0,
-  personalizador1 ENUM('si','no','desconocido') DEFAULT 'desconocido',
-  personalizador2 ENUM('si','no','desconocido') DEFAULT 'desconocido',
   confirmado      BOOLEAN DEFAULT NULL,
   fecha_confirmacion DATETIME NULL,
   comentarios     TEXT NULL,
@@ -74,7 +72,7 @@ CREATE TABLE asistencia (
   hora_salida     DATETIME NULL,
   numero_mesa     VARCHAR(10) NULL,
   numero_asiento  VARCHAR(10) NULL,
-  codigo_gafete   VARCHAR(64) NULL,           # QR o código de gafete
+  codigo_gafete   VARCHAR(64) NULL,           # QR o código de gafete OPCIONAL
   creado_en       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_asistencia_registro (id_registro),
   UNIQUE KEY uq_codigo_gafete (codigo_gafete),
@@ -82,8 +80,8 @@ CREATE TABLE asistencia (
 );
 
 # Catálogo de preferencias alimenticias
-CREATE TABLE preferencias_alimenticias (
-  id_preferencia SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+CREATE TABLE indicaciones_medicas (
+  id_indicacion SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   nombre         VARCHAR(80) NOT NULL,     # Ej. 'Vegetariano', 'Vegano'
   descripcion    VARCHAR(200) NULL
 );
@@ -91,11 +89,11 @@ CREATE TABLE preferencias_alimenticias (
 # Relación entre asistente y preferencia
 CREATE TABLE asistente_preferencia (
   id_asistente   BIGINT UNSIGNED NOT NULL,
-  id_preferencia SMALLINT UNSIGNED NOT NULL,
+  id_indicacion SMALLINT UNSIGNED NOT NULL,
   notas          VARCHAR(200) NULL,
-  PRIMARY KEY (id_asistente, id_preferencia),
+  PRIMARY KEY (id_asistente, id_indicacion),
   CONSTRAINT fk_ap_asistente  FOREIGN KEY (id_asistente)  REFERENCES asistentes(id_asistente),
-  CONSTRAINT fk_ap_preferencia FOREIGN KEY (id_preferencia) REFERENCES preferencias_alimenticias(id_preferencia)
+  CONSTRAINT fk_ap_preferencia FOREIGN KEY (id_indicacion) REFERENCES indicaciones_medicas(id_indicacion)
 );
 
 # ===============================================================

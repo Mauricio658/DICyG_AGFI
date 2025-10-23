@@ -1,0 +1,7 @@
+    body{background:#f6f7fb}
+    .auth-card{max-width:1100px}
+    .brand-mark{height:40px;width:auto;border-radius:.5rem;background:#fff}
+    .side-image{background:#e8eefc url('/Frontend/Images/banner.jpeg') center/cover no-repeat; min-height:568px}
+    .btn-agfi{background:#d22534;border-color:#d22534}
+    .btn-agfi:hover{filter:brightness(1.03)}
+    .muted{color:#6b7280}
