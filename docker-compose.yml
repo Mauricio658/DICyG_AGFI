@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: Sistema_AGFI
+      MYSQL_USER: agfi_user
+      MYSQL_PASSWORD: agfi_pass
+    ports:
+      - "3307:3306"   # host:container (puedes cambiar 3307 si quieres)
+    volumes:
+      - ./Base de Datos:/docker-entrypoint-initdb.d
+      - db_data:/var/lib/mysql   # 👈 que coincida con el de abajo
+
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: mysql+pymysql://agfi_user:agfi_pass@db:3306/Sistema_AGFI
+      FLASK_ENV: development
+    ports:
+      - "5000:5000"
+
+  web:
+    image: nginx:1.27-alpine
+    container_name: agfi-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Frontend:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+volumes:
+  db_data: 

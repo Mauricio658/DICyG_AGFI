@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGFI • Panel Administrador</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  :root{
+    --agfi-rojo:#d22534;
+    --agfi-gris:#f6f7fb;
+    --agfi-text:#1f2937;
+    --agfi-muted:#6b7280;
+  }
+
+  body{
+    background:var(--agfi-gris);
+    color:var(--agfi-text);
+    font-size:0.95rem;
+  }
+
+  .layout{
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:250px;
+    background:#fff;
+    border-right:1px solid #e5e7eb;
+    display:flex;
+    flex-direction:column;
+  }
+  .sidebar-header{
+    background: var(--agfi-rojo);
+    color:#fff;
+    padding:1rem;
+    display:flex;
+    gap:.75rem;
+    align-items:center;
+  }
+  .sidebar-header img{
+    height:50px;
+    width:auto;
+    border-radius:.5rem;
+    background:#fff;
+    object-fit:contain;
+  }
+  .nav-link-admin{
+    border-radius:.5rem;
+    color:var(--agfi-text);
+    font-weight:500;
+  }
+  .nav-link-admin.active,
+  .nav-link-admin:hover{
+    background:var(--agfi-rojo);
+    color:#fff;
+  }
+  .sidebar-footer{
+    margin-top:auto;
+    padding:1rem;
+    border-top:1px solid #e5e7eb;
+  }
+
+  /* Main */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+  }
+  .main-header{
+    background:#fff;
+    border-bottom:1px solid #e5e7eb;
+    padding:1rem 1.5rem;
+  }
+  .main-content{
+    flex:1;
+    padding:1.5rem;
+  }
+
+  .section-title{
+    font-weight:600;
+    font-size:1rem;
+    border-left:4px solid var(--agfi-rojo);
+    padding-left:.5rem;
+    margin-bottom:.75rem;
+  }
+
+  .card-agfi{
+    border:1px solid #e5e7eb;
+  }
+
+  .stat-card{
+    border:1px solid #e5e7eb;
+    background:#fff;
+    padding:1rem;
+    border-radius:.75rem;
+  }
+  .stat-label{
+    font-size:.8rem;
+    color:var(--agfi-muted);
+  }
+  .stat-value{
+    font-size:1.4rem;
+    font-weight:600;
+    color:var(--agfi-text);
+  }
+
+  /* small helpers */
+  .req::after{
+    content:" *";
+    color:var(--agfi-rojo);
+  }
+
+  @media(max-width:768px){
+    .sidebar{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="/Images/logo_AGFI.jpeg" alt="AGFI" onerror="this.style.display='none'">
+      <div>
+        <div class="fw-bold">AGFI Admin</div>
+        <div style="font-size:.8rem;">Panel de control</div>
+      </div>
+    </div>
+
+    <nav class="p-3 d-grid gap-2">
+      <button class="btn nav-link-admin active" data-section="sec-dashboard">Dashboard</button>
+      <button class="btn nav-link-admin" data-section="sec-pase-lista">Pase de lista</button>
+      <button class="btn nav-link-admin" data-section="sec-qr-scan">Escanear QR</button>
+      <button class="btn nav-link-admin" data-section="sec-alta-express">Alta express</button>
+      <button class="btn nav-link-admin" data-section="sec-asistentes">Asistentes formales</button>
+      <button class="btn nav-link-admin" data-section="sec-eventos">Eventos</button>
+      <button class="btn nav-link-admin" data-section="sec-admin-users">Usuarios admin</button>
+      <button class="btn nav-link-admin" data-section="sec-cumples">Cumpleaños</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="logoutBtn" class="btn btn-outline-secondary w-100 btn-sm">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <section class="main">
+
+    <!-- HEADER SUPERIOR -->
+    <header class="main-header d-flex flex-wrap justify-content-between align-items-center">
+      <div>
+        <div class="fw-semibold" id="adminNombre">Hola, Admin</div>
+        <div class="text-muted small">Panel de administración AGFI</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-section="sec-dashboard">Inicio</button>
+        <button class="btn btn-sm btn-outline-secondary" data-section="sec-eventos">Eventos</button>
+        <button class="btn btn-sm btn-outline-secondary" data-section="sec-qr-scan">Escáner QR</button>
+      </div>
+    </header>
+
+    <!-- CONTENIDO -->
+    <main class="main-content">
+
+      <!-- DASHBOARD (ESTADÍSTICAS) -->
+      <section id="sec-dashboard" class="sec-block">
+        <h2 class="section-title">Estadísticas generales</h2>
+
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+              <div class="stat-label">Invitados totales</div>
+              <div class="stat-value" id="statInvitados">0</div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+              <div class="stat-label">Confirmados</div>
+              <div class="stat-value" id="statConfirmados">0</div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+              <div class="stat-label">% Asistencia real</div>
+              <div class="stat-value" id="statAsistenciaReal">0%</div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+              <div class="stat-label">No presentados</div>
+              <div class="stat-value" id="statNoShow">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <h5 class="fw-semibold mb-3">Tendencia de asistencia</h5>
+            <div class="text-muted small mb-2">Placeholder gráfico (aquí luego montamos una gráfica JS).</div>
+            <div style="background:#fff;border:1px dashed #ccc;border-radius:.5rem;height:180px;display:flex;align-items:center;justify-content:center;">
+              <span class="text-muted">[ Gráfica de asistencia / aforo / confirmaciones ]</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- PASE DE LISTA -->
+      <section id="sec-pase-lista" class="sec-block d-none">
+        <h2 class="section-title">Pase de lista por evento</h2>
+        <p class="text-muted small mb-3">
+          Selecciona un evento finalizado o en curso para obtener el pase de lista y marcar asistencia.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <form class="row g-3 align-items-end">
+              <div class="col-md-6">
+                <label class="form-label req">Evento</label>
+                <select id="paseEvento" class="form-select">
+                  <option value="">-- Selecciona evento --</option>
+                  <option value="1">Desayuno Asamblea Ordinaria (15/11/2025)</option>
+                  <option value="2">Networking AGFI Jóvenes (02/12/2025)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <button type="button" class="btn btn-outline-secondary w-100" id="btnCargarPase">
+                  Cargar lista
+                </button>
+              </div>
+              <div class="col-md-3 text-md-end">
+                <button type="button" class="btn btn-outline-success w-100" id="btnExportarPase">
+                  Exportar pase de lista
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Empresa</th>
+                <th>Clasificación</th>
+                <th>Asistencia</th>
+              </tr>
+            </thead>
+            <tbody id="tablaPaseLista">
+              <!-- Se llena dinámicamente -->
+              <!-- Ejemplo -->
+              <!--
+              <tr>
+                <td>María López</td>
+                <td>PEMEX</td>
+                <td>Ingeniero</td>
+                <td>
+                  <input class="form-check-input" type="checkbox" checked>
+                </td>
+              </tr>
+              -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ESCÁNER QR -->
+      <section id="sec-qr-scan" class="sec-block d-none">
+        <h2 class="section-title">Registro rápido por QR</h2>
+        <p class="text-muted small mb-3">
+          Escanea el QR de la credencial. Si no cambias nada y confirmas, se registra asistencia.
+          Si necesitas actualizar datos, edítalos antes de confirmar.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">ID / QR leído</label>
+                <input type="text" class="form-control" id="qrInput" placeholder="Pega aquí el código leído">
+              </div>
+              <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-secondary" id="btnBuscarQR">Buscar persona</button>
+              </div>
+              <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-success" id="btnMarcarAsistencia">
+                  Confirmar asistencia
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <h5 class="fw-semibold mb-3">Datos del asistente</h5>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nombre completo</label>
+                <input class="form-control" id="qrNombre">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Correo</label>
+                <input class="form-control" id="qrCorreo">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Empresa / Institución</label>
+                <input class="form-control" id="qrEmpresa">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Clasificación</label>
+                <input class="form-control" id="qrRol">
+              </div>
+            </div>
+            <div class="text-end mt-3">
+              <button class="btn btn-agfi text-white btn-sm" id="btnGuardarYAsistencia">
+                Guardar cambios y marcar asistencia
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ALTA EXPRESS (ASISTENTE DE ÚLTIMO MOMENTO) -->
+      <section id="sec-alta-express" class="sec-block d-none">
+        <h2 class="section-title">Alta express (último momento)</h2>
+        <p class="text-muted small mb-3">
+          Da de alta a alguien que llegó sin registro. Se generará su QR y credencial (backend).
+        </p>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <form id="formAltaExpress" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">Nombre completo</label>
+                <input type="text" class="form-control" id="exNombre" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Correo</label>
+                <input type="email" class="form-control" id="exCorreo" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Empresa / Institución</label>
+                <input type="text" class="form-control" id="exEmpresa">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Clasificación</label>
+                <select class="form-select" id="exRol" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="ingeniero">Ingeniero ($400)</option>
+                  <option value="becario">Becario ($0)</option>
+                  <option value="estudiante">Estudiante ($200)</option>
+                </select>
+              </div>
+
+              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-agfi text-white" id="btnCrearExpress" type="submit">
+                  Dar de alta y generar QR
+                </button>
+                <div class="small text-muted ms-auto" id="altaExpressMsg"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ASISTENTES FORMALES -->
+      <section id="sec-asistentes" class="sec-block d-none">
+        <h2 class="section-title">Alta de asistentes formales</h2>
+        <p class="text-muted small mb-3">
+          Registro completo de asistentes planeados/invitados oficiales.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <form id="formAsistenteFormal" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">Nombre completo</label>
+                <input type="text" class="form-control" id="foNombre" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Correo</label>
+                <input type="email" class="form-control" id="foCorreo" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Teléfono</label>
+                <input type="tel" class="form-control" id="foTel">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Empresa / Institución</label>
+                <input type="text" class="form-control" id="foEmpresa">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Cargo / Puesto</label>
+                <input type="text" class="form-control" id="foPuesto">
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label req">Clasificación</label>
+                <select class="form-select" id="foRol" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="ingeniero">Ingeniero ($400)</option>
+                  <option value="becario">Becario ($0)</option>
+                  <option value="estudiante">Estudiante ($200)</option>
+                </select>
+              </div>
+
+              <div class="col-md-8">
+                <label class="form-label">Notas internas</label>
+                <input type="text" class="form-control" id="foNotas" placeholder="Ej. invitado del Ing. Ramírez, VIP, etc.">
+              </div>
+
+              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-agfi text-white" id="btnGuardarFormal" type="submit">
+                  Guardar asistente
+                </button>
+                <div class="small text-muted ms-auto" id="asistenteFormalMsg"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <h5 class="fw-semibold mb-3">Listado de asistentes</h5>
+            <div class="table-responsive">
+              <table class="table align-middle table-sm">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Empresa</th>
+                    <th>Rol</th>
+                    <th>QR</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaAsistentesFormales">
+                  <!-- Aquí llenamos la tabla con los asistentes existentes -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EVENTOS -->
+      <section id="sec-eventos" class="sec-block d-none">
+        <h2 class="section-title">Eventos</h2>
+        <p class="text-muted small mb-3">
+          Crea eventos, gestiona invitados y manda correos (invitación / recordatorio).
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <form id="formEvento" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">Nombre del evento</label>
+                <input type="text" class="form-control" id="evNombre" required>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label req">Fecha</label>
+                <input type="date" class="form-control" id="evFecha" required>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label req">Lugar</label>
+                <input type="text" class="form-control" id="evLugar" required>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Descripción / notas logísticas</label>
+                <textarea class="form-control" id="evNotas" rows="2" placeholder="Ej. Salón principal piso 2, acceso por lobby B, traer credencial..."></textarea>
+              </div>
+
+              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-agfi text-white" id="btnCrearEvento" type="submit">
+                  Guardar evento
+                </button>
+                <button class="btn btn-outline-secondary" id="btnInvitaciones" type="button">
+                  Enviar invitaciones
+                </button>
+                <button class="btn btn-outline-secondary" id="btnRecordatorios" type="button">
+                  Enviar recordatorio
+                </button>
+                <div class="small text-muted ms-auto" id="eventoMsg"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <h5 class="fw-semibold mb-3">Listado de eventos</h5>
+            <div class="table-responsive">
+              <table class="table align-middle table-sm">
+                <thead>
+                  <tr>
+                    <th>Evento</th>
+                    <th>Fecha</th>
+                    <th>Lugar</th>
+                    <th>Invitados</th>
+                    <th>Confirmados</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaEventos">
+                  <!-- Se llena con eventos existentes -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- USUARIOS ADMIN -->
+      <section id="sec-admin-users" class="sec-block d-none">
+        <h2 class="section-title">Usuarios administradores</h2>
+        <p class="text-muted small mb-3">
+          Da de alta cuentas con acceso al panel.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <form id="formAdminUser" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">Correo</label>
+                <input type="email" class="form-control" id="adCorreo" required placeholder="admin@agfi.mx">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Contraseña inicial</label>
+                <input type="password" class="form-control" id="adPass" required minlength="6">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Nombre</label>
+                <input type="text" class="form-control" id="adNombre" required placeholder="Nombre del admin">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Rol</label>
+                <select class="form-select" id="adRol" required>
+                  <option value="">-- Rol --</option>
+                  <option value="admin">Administrador</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </div>
+
+              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-agfi text-white" id="btnCrearAdminUser" type="submit">
+                  Crear usuario admin
+                </button>
+                <div class="small text-muted ms-auto" id="adminUserMsg"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <h5 class="fw-semibold mb-3">Administradores registrados</h5>
+            <div class="table-responsive">
+              <table class="table align-middle table-sm">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                    <th>Último acceso</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaAdmins">
+                  <!-- Aquí cargar admins existentes -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- CUMPLEAÑOS -->
+      <section id="sec-cumples" class="sec-block d-none">
+        <h2 class="section-title">Cumpleaños</h2>
+        <p class="text-muted small mb-3">
+          Envía correos de felicitación automáticos o manuales.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 align-items-end">
+              <div>
+                <div class="fw-semibold">Cumpleañeros de hoy</div>
+                <div class="text-muted small" id="cumpleResumen">0 personas</div>
+              </div>
+              <button class="btn btn-outline-secondary btn-sm ms-auto" id="btnFelicitarTodos">
+                Enviar correos de feliz cumpleaños
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table align-middle table-sm">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Edad</th>
+                    <th>Enviar correo</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaCumples">
+                  <!-- Ejemplo estático -->
+                  <!--
+                  <tr>
+                    <td>Daniela Ruiz</td>
+                    <td>daniela@example.com</td>
+                    <td>27</td>
+                    <td><button class="btn btn-sm btn-outline-secondary">Felicitar</button></td>
+                  </tr>
+                  -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // =========================
+  // 1) Control de sesión básica
+  // =========================
+  (function(){
+    const token = localStorage.getItem('agfi_token');
+    const role  = localStorage.getItem('agfi_role');
+    const email = localStorage.getItem('agfi_user_email') || 'admin@agfi.mx';
+
+    if(!token || (role!=='admin' && role!=='staff')){
+      // si no hay sesión admin, fuera
+      window.location.href = 'index.html';
+      return;
+    }
+
+    document.getElementById('adminNombre').textContent = 'Hola, ' + email;
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{
+    localStorage.removeItem('agfi_token');
+    localStorage.removeItem('agfi_role');
+    window.location.href = 'index.html';
+  });
+
+  // =========================
+  // 2) Navegación entre secciones
+  // =========================
+  const sectionButtons = document.querySelectorAll('.nav-link-admin, [data-section].btn-outline-secondary');
+  const sections = document.querySelectorAll('.sec-block');
+
+  sectionButtons.forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const target = btn.getAttribute('data-section');
+      // toggle active
+      document.querySelectorAll('.nav-link-admin').forEach(x=>x.classList.remove('active'));
+      const sameBtnSidebar = document.querySelector('.nav-link-admin[data-section="'+target+'"]');
+      if(sameBtnSidebar) sameBtnSidebar.classList.add('active');
+
+      // mostrar/ocultar secciones
+      sections.forEach(sec=>{
+        sec.classList.add('d-none');
+      });
+      document.getElementById(target).classList.remove('d-none');
+    });
+  });
+
+  // =========================
+  // 3) Mock data inicial para maqueta
+  // =========================
+
+  // Dashboard stats (mock)
+  document.getElementById('statInvitados').textContent = 120;
+  document.getElementById('statConfirmados').textContent = 95;
+  document.getElementById('statAsistenciaReal').textContent = '82%';
+  document.getElementById('statNoShow').textContent = 25;
+
+  // Pase de lista mock al dar "Cargar lista"
+  document.getElementById('btnCargarPase').addEventListener('click', ()=>{
+    const tbody = document.getElementById('tablaPaseLista');
+    tbody.innerHTML = `
+      <tr>
+        <td>María López</td>
+        <td>PEMEX</td>
+        <td>Ingeniero</td>
+        <td><input class="form-check-input" type="checkbox" checked></td>
+      </tr>
+      <tr>
+        <td>Adrián Reyes</td>
+        <td>UNAM</td>
+        <td>Estudiante</td>
+        <td><input class="form-check-input" type="checkbox"></td>
+      </tr>
+    `;
+  });
+
+  // Alta express submit
+  document.getElementById('formAltaExpress').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const nombre = document.getElementById('exNombre').value.trim();
+    const correo = document.getElementById('exCorreo').value.trim();
+    const rol    = document.getElementById('exRol').value;
+    const msgBox = document.getElementById('altaExpressMsg');
+
+    if(!nombre || !correo || !rol){
+      msgBox.textContent = 'Faltan datos obligatorios.';
+      msgBox.className = 'text-danger small';
+      return;
+    }
+
+    // Aquí llamarías backend:
+    // POST /api/alta-express  -> devuelve id, qr_url, etc.
+    msgBox.textContent = 'Asistente creado y QR generado (simulado).';
+    msgBox.className = 'text-success small';
+
+    // También podrías inyectarlo en la tabla de asistentes formales:
+    addAsistenteFormalRow({
+      nombre:nombre,
+      correo:correo,
+      empresa:document.getElementById('exEmpresa').value.trim(),
+      rol:rol,
+      qr:'QR_TEMP'
+    });
+
+    e.target.reset();
+  });
+
+  // Asistentes formales mock table + helper para añadir filas
+  const tablaAsistentesFormales = document.getElementById('tablaAsistentesFormales');
+  function addAsistenteFormalRow(a){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${a.nombre||''}</td>
+      <td>${a.correo||''}</td>
+      <td>${a.empresa||''}</td>
+      <td>${a.rol||''}</td>
+      <td>${a.qr||''}</td>
+    `;
+    tablaAsistentesFormales.appendChild(tr);
+  }
+
+  // mock inicial
+  addAsistenteFormalRow({nombre:'María López', correo:'maria@ejemplo.com', empresa:'PEMEX', rol:'ingeniero', qr:'QR123'});
+  addAsistenteFormalRow({nombre:'Adrián Reyes', correo:'adrian@fi.unam.mx', empresa:'UNAM', rol:'estudiante', qr:'QR987'});
+
+  // Guardar asistente formal (form grande)
+  document.getElementById('formAsistenteFormal').addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const msg = document.getElementById('asistenteFormalMsg');
+
+    const data = {
+      nombre: document.getElementById('foNombre').value.trim(),
+      correo: document.getElementById('foCorreo').value.trim(),
+      tel:    document.getElementById('foTel').value.trim(),
+      empresa:document.getElementById('foEmpresa').value.trim(),
+      puesto: document.getElementById('foPuesto').value.trim(),
+      rol:    document.getElementById('foRol').value,
+      notas:  document.getElementById('foNotas').value.trim(),
+    };
+
+    if(!data.nombre || !data.correo || !data.rol){
+      msg.textContent = 'Faltan campos obligatorios.';
+      msg.className = 'text-danger small';
+      return;
+    }
+
+    // Aquí iría POST /api/asistentes
+    addAsistenteFormalRow({
+      nombre: data.nombre,
+      correo: data.correo,
+      empresa: data.empresa,
+      rol: data.rol,
+      qr: 'QR_new'
+    });
+
+    msg.textContent = 'Asistente guardado (simulado).';
+    msg.className = 'text-success small';
+    e.target.reset();
+  });
+
+  // Eventos mock
+  const tablaEventos = document.getElementById('tablaEventos');
+  function addEventoRow(ev){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${ev.nombre}</td>
+      <td>${ev.fecha}</td>
+      <td>${ev.lugar}</td>
+      <td>${ev.invitados} invit.</td>
+      <td>${ev.confirmados} conf.</td>
+    `;
+    tablaEventos.appendChild(tr);
+  }
+  addEventoRow({nombre:'Desayuno Asamblea Ordinaria', fecha:'15/11/2025', lugar:'CDMX', invitados:120, confirmados:95});
+  addEventoRow({nombre:'Networking AGFI Jóvenes', fecha:'02/12/2025', lugar:'Guadalajara', invitados:60, confirmados:42});
+
+  // Guardar evento
+  document.getElementById('formEvento').addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const msg  = document.getElementById('eventoMsg');
+
+    const data = {
+      nombre: document.getElementById('evNombre').value.trim(),
+      fecha:  document.getElementById('evFecha').value,
+      lugar:  document.getElementById('evLugar').value.trim(),
+      notas:  document.getElementById('evNotas').value.trim(),
+    };
+
+    if(!data.nombre || !data.fecha || !data.lugar){
+      msg.textContent = 'Faltan campos obligatorios.';
+      msg.className = 'text-danger small';
+      return;
+    }
+
+    // POST /api/eventos
+    addEventoRow({nombre:data.nombre,fecha:data.fecha,lugar:data.lugar,invitados:0,confirmados:0});
+
+    msg.textContent = 'Evento guardado (simulado).';
+    msg.className = 'text-success small';
+    e.target.reset();
+  });
+
+  // Invitar / Recordar → aquí dispararía correo masivo
+  document.getElementById('btnInvitaciones').addEventListener('click',()=>{
+    // POST /api/eventos/:id/invitaciones
+    document.getElementById('eventoMsg').textContent = 'Invitaciones enviadas (simulado).';
+  });
+  document.getElementById('btnRecordatorios').addEventListener('click',()=>{
+    // POST /api/eventos/:id/recordatorios
+    document.getElementById('eventoMsg').textContent = 'Recordatorios enviados (simulado).';
+  });
+
+  // Admin users mock
+  const tablaAdmins = document.getElementById('tablaAdmins');
+  function addAdminRow(a){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${a.nombre}</td>
+      <td>${a.correo}</td>
+      <td>${a.rol}</td>
+      <td>${a.last || 'hoy'}</td>
+    `;
+    tablaAdmins.appendChild(tr);
+  }
+  addAdminRow({nombre:'Super Admin', correo:'admin@agfi.mx', rol:'admin', last:'28/10/2025 13:11'});
+  addAdminRow({nombre:'Staff Recepción', correo:'registro@agfi.mx', rol:'staff', last:'28/10/2025 09:20'});
+
+  document.getElementById('formAdminUser').addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const msg = document.getElementById('adminUserMsg');
+
+    const data = {
+      correo: document.getElementById('adCorreo').value.trim(),
+      pass:   document.getElementById('adPass').value.trim(),
+      nombre: document.getElementById('adNombre').value.trim(),
+      rol:    document.getElementById('adRol').value,
+    };
+
+    if(!data.correo || !data.pass || !data.nombre || !data.rol){
+      msg.textContent = 'Faltan campos obligatorios.';
+      msg.className = 'text-danger small';
+      return;
+    }
+
+    // POST /api/admin-users
+    addAdminRow({nombre:data.nombre, correo:data.correo, rol:data.rol, last:'justo ahora'});
+    msg.textContent = 'Usuario admin creado (simulado).';
+    msg.className = 'text-success small';
+    e.target.reset();
+  });
+
+  // Cumpleaños mock
+  const tablaCumples = document.getElementById('tablaCumples');
+  function addCumpleRow(c){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${c.nombre}</td>
+      <td>${c.correo}</td>
+      <td>${c.edad}</td>
+      <td><button class="btn btn-sm btn-outline-secondary felicitar-btn">Felicitar</button></td>
+    `;
+    tablaCumples.appendChild(tr);
+  }
+  addCumpleRow({nombre:'Daniela Ruiz', correo:'daniela@example.com', edad:27});
+  addCumpleRow({nombre:'Luis Ortega', correo:'luis@empresa.com', edad:35});
+
+  document.getElementById('cumpleResumen').textContent = '2 personas';
+
+  document.getElementById('btnFelicitarTodos').addEventListener('click',()=>{
+    // POST /api/cumples/send-all
+    alert('Correos de cumpleaños enviados (simulado).');
+  });
+
+  tablaCumples.addEventListener('click',(e)=>{
+    if(e.target.classList.contains('felicitar-btn')){
+      // POST /api/cumples/send-one
+      alert('Correo de cumpleaños enviado (simulado).');
+    }
+  });
+
+  // QR SCAN mock
+  document.getElementById('btnBuscarQR').addEventListener('click',()=>{
+    const id = document.getElementById('qrInput').value.trim();
+    if(!id){ alert('Pega un código QR/ID.'); return; }
+
+    // GET /api/qr/:id
+    // mock:
+    document.getElementById('qrNombre').value  = 'Invitado ' + id;
+    document.getElementById('qrCorreo').value  = id+'@ejemplo.com';
+    document.getElementById('qrEmpresa').value = 'Empresa Demo';
+    document.getElementById('qrRol').value     = 'estudiante';
+  });
+
+  document.getElementById('btnMarcarAsistencia').addEventListener('click',()=>{
+    const id = document.getElementById('qrInput').value.trim();
+    if(!id){ alert('Sin QR.'); return; }
+    // POST /api/asistencia/checkin {id}
+    alert('Asistencia registrada sin cambios (simulado).');
+  });
+
+  document.getElementById('btnGuardarYAsistencia').addEventListener('click',()=>{
+    const id = document.getElementById('qrInput').value.trim();
+    // PUT /api/persona/:id  +  POST /api/asistencia/checkin {id}
+    alert('Datos actualizados y asistencia registrada (simulado).');
+  });
+</script>
+</body>
+</html>

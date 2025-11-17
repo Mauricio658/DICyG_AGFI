@@ -1,0 +1,16 @@
+User: AGFI
+Contreseña Usuario: Sei9set6e4mkawawgyfti9
+
+Pasos para instalar ngnix y la base de datos
+
+sudo apt update
+sudo apt upgrade
+sudo apt install nginx -y
+sudo apt update
+sudo apt install mariadb-server
+systemctl start mariadb
+systemctl enable mariadb
+
+
+
+genracion y carrera en staff

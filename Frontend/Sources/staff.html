@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGFI • Staff de Registro</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  :root{
+    --agfi-rojo:#d22534;
+    --agfi-gris:#f6f7fb;
+    --agfi-text:#1f2937;
+    --agfi-muted:#6b7280;
+  }
+
+  body{
+    background:var(--agfi-gris);
+    color:var(--agfi-text);
+    font-size:0.95rem;
+    min-height:100vh;
+  }
+
+  .layout{
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:240px;
+    background:#fff;
+    border-right:1px solid #e5e7eb;
+    display:flex;
+    flex-direction:column;
+  }
+  .sidebar-header{
+    background: var(--agfi-rojo);
+    color:#fff;
+    padding:1rem;
+    display:flex;
+    gap:.75rem;
+    align-items:center;
+  }
+  .sidebar-header img{
+    height:50px;
+    width:auto;
+    border-radius:.5rem;
+    background:#fff;
+    object-fit:contain;
+  }
+  .nav-link-staff{
+    border-radius:.5rem;
+    color:var(--agfi-text);
+    font-weight:500;
+  }
+  .nav-link-staff.active,
+  .nav-link-staff:hover{
+    background:var(--agfi-rojo);
+    color:#fff;
+  }
+  .sidebar-footer{
+    margin-top:auto;
+    padding:1rem;
+    border-top:1px solid #e5e7eb;
+  }
+
+  /* Main */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+  }
+  .main-header{
+    background:#fff;
+    border-bottom:1px solid #e5e7eb;
+    padding:1rem 1.5rem;
+  }
+  .main-content{
+    flex:1;
+    padding:1.5rem;
+  }
+
+  .section-title{
+    font-weight:600;
+    font-size:1rem;
+    border-left:4px solid var(--agfi-rojo);
+    padding-left:.5rem;
+    margin-bottom:.75rem;
+  }
+
+  .card-agfi{
+    border:1px solid #e5e7eb;
+  }
+
+  .req::after{
+    content:" *";
+    color:var(--agfi-rojo);
+  }
+
+  @media(max-width:768px){
+    .sidebar{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="/Images/logo_AGFI.jpeg" alt="AGFI" onerror="this.style.display='none'">
+      <div>
+        <div class="fw-bold">AGFI Staff</div>
+        <div style="font-size:.8rem;">Registro en sitio</div>
+      </div>
+    </div>
+
+    <nav class="p-3 d-grid gap-2">
+      <button class="btn nav-link-staff active" data-section="sec-qr-scan">Escanear QR</button>
+      <button class="btn nav-link-staff" data-section="sec-alta-express">Alta express</button>
+      <button class="btn nav-link-staff" data-section="sec-pase-lista">Pase de lista</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="logoutBtn" class="btn btn-outline-secondary w-100 btn-sm">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <section class="main">
+
+    <!-- HEADER -->
+    <header class="main-header d-flex flex-wrap justify-content-between align-items-center">
+      <div>
+        <div class="fw-semibold" id="staffNombre">Hola, Staff</div>
+        <div class="text-muted small">Módulo operativo de acceso</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-section="sec-qr-scan">QR</button>
+        <button class="btn btn-sm btn-outline-secondary" data-section="sec-alta-express">Alta</button>
+        <button class="btn btn-sm btn-outline-secondary" data-section="sec-pase-lista">Lista</button>
+      </div>
+    </header>
+
+    <!-- CONTENIDO -->
+    <main class="main-content">
+
+      <!-- ESCANEAR QR -->
+      <section id="sec-qr-scan" class="sec-block">
+        <h2 class="section-title">Escanear / Registrar asistencia</h2>
+        <p class="text-muted small mb-3">
+          Escanea el QR de la credencial o pega el código.  
+          Si no cambias nada y confirmas, solo registramos su asistencia.  
+          Si editas, se guardan los cambios y también se registra asistencia.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">ID / QR leído</label>
+                <input type="text" class="form-control" id="qrInput" placeholder="Pega aquí el código leído">
+              </div>
+              <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-secondary" id="btnBuscarQR">Buscar persona</button>
+              </div>
+              <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-success" id="btnMarcarAsistencia">
+                  Confirmar asistencia
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <h5 class="fw-semibold mb-3">Datos del asistente</h5>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nombre completo</label>
+                <input class="form-control" id="qrNombre">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Correo</label>
+                <input class="form-control" id="qrCorreo">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Empresa / Institución</label>
+                <input class="form-control" id="qrEmpresa">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Clasificación</label>
+                <input class="form-control" id="qrRol">
+              </div>
+            </div>
+            <div class="text-end mt-3">
+              <button class="btn btn-danger text-white btn-sm" id="btnGuardarYAsistencia">
+                Guardar cambios y marcar asistencia
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ALTA EXPRESS -->
+      <section id="sec-alta-express" class="sec-block d-none">
+        <h2 class="section-title">Alta express (último momento)</h2>
+        <p class="text-muted small mb-3">
+          Para invitados que llegaron sin registro. Se les genera QR / credencial desde backend.
+        </p>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <form id="formAltaExpress" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label req">Nombre completo</label>
+                <input type="text" class="form-control" id="exNombre" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Correo</label>
+                <input type="email" class="form-control" id="exCorreo" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Empresa / Institución</label>
+                <input type="text" class="form-control" id="exEmpresa">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label req">Clasificación</label>
+                <select class="form-select" id="exRol" required>
+                  <option value="">-- Selecciona --</option>
+                  <option value="ingeniero">Ingeniero ($400)</option>
+                  <option value="becario">Becario ($0)</option>
+                  <option value="estudiante">Estudiante ($200)</option>
+                </select>
+              </div>
+
+              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-danger text-white" id="btnCrearExpress" type="submit">
+                  Dar de alta y generar QR
+                </button>
+                <div class="small text-muted ms-auto" id="altaExpressMsg"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- PASE DE LISTA -->
+      <section id="sec-pase-lista" class="sec-block d-none">
+        <h2 class="section-title">Pase de lista rápido</h2>
+        <p class="text-muted small mb-3">
+          Usa esta vista si no se puede leer el QR. Selecciona evento y marca quién asistió.
+        </p>
+
+        <div class="card card-agfi shadow-sm mb-4">
+          <div class="card-body">
+            <form class="row g-3 align-items-end">
+              <div class="col-md-8">
+                <label class="form-label req">Evento</label>
+                <select id="paseEvento" class="form-select">
+                  <option value="">-- Selecciona evento --</option>
+                  <option value="1">Desayuno Asamblea Ordinaria (15/11/2025)</option>
+                  <option value="2">Networking AGFI Jóvenes (02/12/2025)</option>
+                </select>
+              </div>
+              <div class="col-md-4 d-grid">
+                <button type="button" class="btn btn-outline-secondary w-100" id="btnCargarPase">
+                  Cargar lista
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Empresa</th>
+                    <th>Clasificación</th>
+                    <th>Asistió</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaPaseLista">
+                  <!-- se inyecta con JS -->
+                </tbody>
+              </table>
+            </div>
+            <div class="text-end mt-3">
+              <button class="btn btn-success btn-sm" id="btnGuardarPase">
+                Guardar asistencia
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function(){
+  // ========== 1) Sesión / seguridad de rol ==========
+  const token = localStorage.getItem('agfi_token');
+  const role  = localStorage.getItem('agfi_role');
+  const email = localStorage.getItem('agfi_user_email') || 'staff@agfi.mx';
+
+  // Solo dejamos entrar a staff o admin (admin también puede operar aquí si quiere)
+  if(!token || (role!=='staff' && role!=='admin')){
+    window.location.href = 'index.html';
+    return;
+  }
+
+  document.getElementById('staffNombre').textContent = 'Hola, ' + email;
+
+  // Logout
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{
+    localStorage.removeItem('agfi_token');
+    localStorage.removeItem('agfi_role');
+    window.location.href = 'index.html';
+  });
+
+  // ========== 2) Navegación entre secciones ==========
+  const sectionButtons = document.querySelectorAll('.nav-link-staff, [data-section].btn-outline-secondary');
+  const sections = document.querySelectorAll('.sec-block');
+
+  sectionButtons.forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const target = btn.getAttribute('data-section');
+
+      // marcar activo en sidebar
+      document.querySelectorAll('.nav-link-staff').forEach(x=>x.classList.remove('active'));
+      const matchSide = document.querySelector('.nav-link-staff[data-section="'+target+'"]');
+      if(matchSide) matchSide.classList.add('active');
+
+      // mostrar sección seleccionada
+      sections.forEach(sec=>sec.classList.add('d-none'));
+      document.getElementById(target).classList.remove('d-none');
+    });
+  });
+
+  // ========== 3) ESCANEAR QR ==========
+  document.getElementById('btnBuscarQR').addEventListener('click',()=>{
+    const id = document.getElementById('qrInput').value.trim();
+    if(!id){
+      alert('Pega un código QR/ID.');
+      return;
+    }
+
+    // Simulación de búsqueda por QR/id
+    document.getElementById('qrNombre').value  = 'Invitado ' + id;
+    document.getElementById('qrCorreo').value  = id + '@ejemplo.com';
+    document.getElementById('qrEmpresa').value = 'Empresa Demo';
+    document.getElementById('qrRol').value     = 'estudiante';
+  });
+
+  // marcar asistencia sin cambios
+  document.getElementById('btnMarcarAsistencia').addEventListener('click',()=>{
+    const id = document.getElementById('qrInput').value.trim();
+    if(!id){
+      alert('Sin QR.');
+      return;
+    }
+    // POST /api/asistencia/checkin {id}
+    alert('Asistencia registrada (sin cambios) [simulado].');
+  });
+
+  // guardar cambios + asistencia
+  document.getElementById('btnGuardarYAsistencia').addEventListener('click',()=>{
+    const id = document.getElementById('qrInput').value.trim();
+    // PUT /api/persona/:id con qrNombre, qrCorreo, qrEmpresa, qrRol
+    // luego POST /api/asistencia/checkin {id}
+    alert('Datos actualizados y asistencia registrada [simulado].');
+  });
+
+  // ========== 4) ALTA EXPRESS ==========
+  const altaExpressForm = document.getElementById('formAltaExpress');
+  const msgBox = document.getElementById('altaExpressMsg');
+
+  altaExpressForm.addEventListener('submit',(e)=>{
+    e.preventDefault();
+
+    const nombre = document.getElementById('exNombre').value.trim();
+    const correo = document.getElementById('exCorreo').value.trim();
+    const rol    = document.getElementById('exRol').value;
+
+    if(!nombre || !correo || !rol){
+      msgBox.textContent = 'Faltan datos obligatorios.';
+      msgBox.className = 'text-danger small';
+      return;
+    }
+
+    // POST /api/alta-express
+    // backend debería crear asistente temporal + QR
+    msgBox.textContent = 'Asistente creado y QR generado (simulado).';
+    msgBox.className = 'text-success small';
+
+    altaExpressForm.reset();
+  });
+
+  // ========== 5) PASE DE LISTA RÁPIDO ==========
+  document.getElementById('btnCargarPase').addEventListener('click',()=>{
+    const tbody = document.getElementById('tablaPaseLista');
+
+    // GET /api/eventos/:id/asistentes
+    // Mock demo:
+    tbody.innerHTML = `
+      <tr>
+        <td>María López</td>
+        <td>PEMEX</td>
+        <td>Ingeniero</td>
+        <td><input class="form-check-input" type="checkbox" checked></td>
+      </tr>
+      <tr>
+        <td>Adrián Reyes</td>
+        <td>UNAM</td>
+        <td>Estudiante</td>
+        <td><input class="form-check-input" type="checkbox"></td>
+      </tr>
+    `;
+  });
+
+  document.getElementById('btnGuardarPase').addEventListener('click',()=>{
+    const rows = document.querySelectorAll('#tablaPaseLista tr');
+    const asistenciaPayload = [];
+    rows.forEach(r=>{
+      const nombre = r.children[0].textContent.trim();
+      const checked = r.querySelector('input[type="checkbox"]').checked;
+      asistenciaPayload.push({ nombre, asistio: checked });
+    });
+
+    // POST /api/asistencia/lote
+    console.log('Asistencia lote simulada:', asistenciaPayload);
+    alert('Asistencia guardada [simulado].');
+  });
+
+})();
+</script>
+</body>
+</html>
