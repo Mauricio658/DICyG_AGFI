@@ -733,8 +733,6 @@
     // En modo debug ya no te regreso al index
   });
 })();
-</script>
-<script>
    // =========================
   // 2) Navegación entre secciones
   // =========================
@@ -756,20 +754,99 @@
       document.getElementById(target).classList.remove('d-none');
     });
   });
-
+</script>
+<script>
+// =========================
+// ASISTENTES FORMALES — FUSIÓN COMPLETA
+// =========================
 document.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('agfi_token');
   const formFormal = document.getElementById('formAsistenteFormal');
   const msgFormal = document.getElementById('asistenteFormalMsg');
+  const tablaAsistentesBody = document.getElementById('tablaAsistentesFormales');
 
+  if (!token) {
+    if (msgFormal) {
+      msgFormal.textContent = 'Sin sesión. Vuelve a iniciar.';
+      msgFormal.classList.add('text-danger');
+    }
+    return;
+  }
+
+  // --------- FUNCIÓN PARA CARGAR TABLA ----------
+  async function cargarAsistentesFormales() {
+    if (!tablaAsistentesBody) return;
+
+    tablaAsistentesBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-muted">Cargando asistentes...</td>
+      </tr>
+    `;
+
+    try {
+      const res = await fetch('http://localhost:5000/admin/asistentes', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        tablaAsistentesBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-danger">
+              Error al cargar asistentes: ${body.message || 'Error desconocido.'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const asistentes = body.asistentes || [];
+
+      if (asistentes.length === 0) {
+        tablaAsistentesBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-muted">Aún no hay asistentes registrados.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      // Renderizar tabla
+      tablaAsistentesBody.innerHTML = '';
+      asistentes.forEach(a => {
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td>${a.nombre || ''}</td>
+          <td>${a.correo || ''}</td>
+          <td>${a.empresa || ''}</td>
+          <td>${a.rol || ''}</td>
+          <td><span class="text-muted small">QR pendiente</span></td>
+        `;
+
+        tablaAsistentesBody.appendChild(tr);
+      });
+
+    } catch (err) {
+      console.error(err);
+      tablaAsistentesBody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-danger">
+            Error de comunicación con el servidor.
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  // --------- SUBMIT DEL FORMULARIO (UN SOLO HANDLER) ----------
   if (formFormal) {
     formFormal.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!token) {
-        msgFormal.textContent = 'Sin sesión. Vuelve a iniciar.';
-        msgFormal.classList.add('text-danger');
-        return;
-      }
 
       msgFormal.textContent = 'Guardando asistente...';
       msgFormal.classList.remove('text-danger', 'text-success');
@@ -812,8 +889,9 @@ document.addEventListener('DOMContentLoaded', () => {
         msgFormal.classList.add('text-success');
         formFormal.reset();
 
-        // Opcional: aquí podrías agregar la fila a la tablaAsistentesFormales
-        // sin recargar la página.
+        // REFRESCAR TABLA DESPUÉS DE GUARDAR
+        cargarAsistentesFormales();
+
       } catch (err) {
         console.error(err);
         msgFormal.textContent = 'Error de comunicación con el servidor.';
@@ -821,8 +899,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // 👉 CARGA INICIAL DE LA TABLA AL ENTRAR
+  cargarAsistentesFormales();
 });
 </script>
+
 
 </body>
 </html>

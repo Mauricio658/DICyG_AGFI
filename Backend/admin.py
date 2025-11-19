@@ -280,3 +280,39 @@ def crear_asistente_formal():
             "indicaciones_medicas": indicaciones_txt
         }
     }), 201
+
+# =====================================
+# 4) Listar asistentes formales 
+# =====================================
+@admin_bp.route("/asistentes", methods=["GET"])
+@jwt_required()
+def listar_asistentes_formales():
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({
+            "ok": False,
+            "message": "Solo admin o staff pueden ver la lista de asistentes."
+        }), 403
+
+    asistentes = (
+        db.session.query(Asistente, Persona, Rol)
+        .join(Persona, Asistente.id_asistente == Persona.id_persona)
+        .join(Rol, Asistente.id_rol == Rol.id_rol)
+        .order_by(Persona.nombre_completo.asc())
+        .all()
+    )
+
+    data = []
+    for asistente, persona, rol in asistentes:
+        data.append({
+            "id_asistente": asistente.id_asistente,
+            "nombre": persona.nombre_completo,
+            "correo": persona.correo,
+            "empresa": persona.empresa,
+            "rol": rol.nombre_rol  # ingeniero / becario / estudiante
+        })
+
+    return jsonify({
+        "ok": True,
+        "asistentes": data
+    }), 200
