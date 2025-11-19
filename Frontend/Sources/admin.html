@@ -970,22 +970,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (eventos.length === 0) {
         tablaEventos.innerHTML = `
-          <tr><td colspan="5" class="text-muted">Aún no has creado eventos.</td></tr>
+          <tr>
+            <td colspan="5" class="text-muted">Aún no has creado eventos.</td>
+          </tr>
         `;
         return;
       }
 
       eventos.forEach(ev => {
+        const detId = `ev-det-${ev.id_evento}`;
+
         tablaEventos.innerHTML += `
-          <tr>
+          <tr class="clickable-row" data-bs-toggle="collapse" data-bs-target="#${detId}">
             <td>${ev.nombre}</td>
             <td>${ev.fecha}</td>
             <td>${ev.lugar}</td>
             <td>${ev.invitados}</td>
             <td>${ev.confirmados}</td>
           </tr>
+          <tr class="collapse bg-light" id="${detId}">
+            <td colspan="5">
+              <div class="small mb-1"><strong>Código:</strong> ${ev.codigo || '—'}</div>
+              <div class="small mb-1"><strong>Dirección:</strong> ${ev.direccion || '—'}</div>
+              <div class="small mb-1">
+                <strong>Ciudad / Estado / País:</strong>
+                ${(ev.ciudad || '—')} / ${(ev.estado || '—')} / ${(ev.pais || '—')}
+              </div>
+              <div class="small mb-1"><strong>Notas:</strong> ${ev.notas || '—'}</div>
+            </td>
+          </tr>
         `;
       });
+
 
     } catch (err) {
       console.error(err);

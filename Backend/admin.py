@@ -501,7 +501,12 @@ def listar_eventos():
             "nombre": ev.nombre,
             "fecha": ev.fecha_inicio.strftime("%Y-%m-%d"),
             "lugar": ev.sede,
-            "invitados": total_oficiales,   # 👈 AQUÍ va la cantidad de asistentes oficiales
+            "direccion": ev.direccion,
+            "ciudad": ev.ciudad,
+            "estado": ev.estado,
+            "pais": ev.pais,
+            "notas": ev.notas,
+            "invitados": total_oficiales,
             "confirmados": confirmados
         })
 
