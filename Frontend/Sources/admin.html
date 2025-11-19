@@ -388,6 +388,10 @@
                 <label class="form-label req">Correo</label>
                 <input type="email" class="form-control" id="foCorreo" required>
               </div>
+              <div class="col-md-6">
+                <label class="form-label req">Contraseña</label>
+                <input type="password" class="form-control" id="foPass" required>
+              </div>
               <div class="col-md-4">
                 <label class="form-label">Teléfono</label>
                 <input type="tel" class="form-control" id="foTel">
@@ -401,6 +405,20 @@
                 <input type="text" class="form-control" id="foPuesto">
               </div>
 
+              <!-- NUEVOS CAMPOS -->
+              <div class="col-md-4">
+                <label class="form-label req">Carrera</label>
+                <input type="text" class="form-control" id="foCarrera" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Generación</label>
+                <input type="text" class="form-control" id="foGeneracion" placeholder="Ej. 2021-2025">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Fecha de nacimiento</label>
+                <input type="date" class="form-control" id="foFechaNac">
+              </div>
+
               <div class="col-md-4">
                 <label class="form-label req">Clasificación</label>
                 <select class="form-select" id="foRol" required>
@@ -412,8 +430,15 @@
               </div>
 
               <div class="col-md-8">
+                <label class="form-label">Indicaciones médicas</label>
+                <input type="text" class="form-control" id="foIndicaciones"
+                      placeholder="Ej. alergias, medicamento, condición específica">
+              </div>
+
+              <div class="col-12">
                 <label class="form-label">Notas internas</label>
-                <input type="text" class="form-control" id="foNotas" placeholder="Ej. invitado del Ing. Ramírez, VIP, etc.">
+                <input type="text" class="form-control" id="foNotas"
+                      placeholder="Ej. invitado del Ing. Ramírez, VIP, etc.">
               </div>
 
               <div class="col-12 d-flex flex-wrap gap-2 mt-3">
@@ -639,31 +664,72 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  // =========================
-  // 1) Control de sesión básica
-  // =========================
-  (function(){
-    const token = localStorage.getItem('agfi_token');
-    const role  = localStorage.getItem('agfi_role');
-    const email = localStorage.getItem('agfi_user_email') || 'admin@agfi.mx';
 
-    if(!token || (role!=='admin' && role!=='staff')){
-      // si no hay sesión admin, fuera
+<script>
+(function(){
+  const token = localStorage.getItem('agfi_token');
+  if (!token) {
+    // Sin token, aquí sí es válido regresarte
+    window.location.href = 'index.html';
+    return;
+  }
+
+  fetch('http://localhost:5000/admin/verify', {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer ' + token
+    }
+  })
+  .then(async (res) => {
+    let body = {};
+    try {
+      body = await res.json();
+    } catch(e) {
+      console.error('Error parseando JSON de /admin/verify', e);
+    }
+
+    console.log('DEBUG /admin/verify =>', res.status, body);
+
+    // Si el token falta ⇒ sí regresamos al login
+    if (res.status === 401) {
+      localStorage.clear();
       window.location.href = 'index.html';
       return;
     }
 
-    document.getElementById('adminNombre').textContent = 'Hola, ' + email;
-  })();
+    // Si el token está mal formado / invalido (422) NO te regreso,
+    // solo te aviso en pantalla para debug
+    if (res.status === 422) {
+      console.error('Token inválido o corrupto en /admin/verify', body);
+      document.getElementById('adminNombre').textContent =
+        'Error con tu sesión (token inválido). Vuelve a iniciar sesión.';
+      return;
+    }
 
-  document.getElementById('logoutBtn').addEventListener('click', ()=>{
-    localStorage.removeItem('agfi_token');
-    localStorage.removeItem('agfi_role');
-    window.location.href = 'index.html';
+
+    // Si el backend dice que no estás autorizado (rol distinto)
+    if (res.status === 403 || body.ok === false) {
+      document.getElementById('adminNombre').textContent =
+        'Acceso restringido (rol no autorizado)';
+      // NO te regreso al index, solo te aviso
+      return;
+    }
+
+    // Caso OK
+    if (body && body.ok && body.user) {
+      const email = body.user.correo || 'admin@agfi.mx';
+      document.getElementById('adminNombre').textContent = 'Hola, ' + email;
+      localStorage.setItem('agfi_role', body.user.rol);
+    }
+  })
+  .catch((err) => {
+    console.error('Error llamando a /admin/verify', err);
+    // En modo debug ya no te regreso al index
   });
-
-  // =========================
+})();
+</script>
+<script>
+   // =========================
   // 2) Navegación entre secciones
   // =========================
   const sectionButtons = document.querySelectorAll('.nav-link-admin, [data-section].btn-outline-secondary');
@@ -685,264 +751,71 @@
     });
   });
 
-  // =========================
-  // 3) Mock data inicial para maqueta
-  // =========================
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('agfi_token');
+  const formFormal = document.getElementById('formAsistenteFormal');
+  const msgFormal = document.getElementById('asistenteFormalMsg');
 
-  // Dashboard stats (mock)
-  document.getElementById('statInvitados').textContent = 120;
-  document.getElementById('statConfirmados').textContent = 95;
-  document.getElementById('statAsistenciaReal').textContent = '82%';
-  document.getElementById('statNoShow').textContent = 25;
+  if (formFormal) {
+    formFormal.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!token) {
+        msgFormal.textContent = 'Sin sesión. Vuelve a iniciar.';
+        msgFormal.classList.add('text-danger');
+        return;
+      }
 
-  // Pase de lista mock al dar "Cargar lista"
-  document.getElementById('btnCargarPase').addEventListener('click', ()=>{
-    const tbody = document.getElementById('tablaPaseLista');
-    tbody.innerHTML = `
-      <tr>
-        <td>María López</td>
-        <td>PEMEX</td>
-        <td>Ingeniero</td>
-        <td><input class="form-check-input" type="checkbox" checked></td>
-      </tr>
-      <tr>
-        <td>Adrián Reyes</td>
-        <td>UNAM</td>
-        <td>Estudiante</td>
-        <td><input class="form-check-input" type="checkbox"></td>
-      </tr>
-    `;
-  });
+      msgFormal.textContent = 'Guardando asistente...';
+      msgFormal.classList.remove('text-danger', 'text-success');
 
-  // Alta express submit
-  document.getElementById('formAltaExpress').addEventListener('submit', (e)=>{
-    e.preventDefault();
-    const nombre = document.getElementById('exNombre').value.trim();
-    const correo = document.getElementById('exCorreo').value.trim();
-    const rol    = document.getElementById('exRol').value;
-    const msgBox = document.getElementById('altaExpressMsg');
+      const payload = {
+        nombre: document.getElementById('foNombre').value.trim(),
+        correo: document.getElementById('foCorreo').value.trim(),
+        password: document.getElementById('foPass').value.trim(),
+        telefono: document.getElementById('foTel').value.trim() || null,
+        empresa: document.getElementById('foEmpresa').value.trim() || null,
+        puesto: document.getElementById('foPuesto').value.trim() || null,
+        rol: document.getElementById('foRol').value,
+        carrera: document.getElementById('foCarrera').value.trim() || null,
+        generacion: document.getElementById('foGeneracion').value.trim() || null,
+        fecha_nacimiento: document.getElementById('foFechaNac').value || null,
+        indicaciones_medicas: document.getElementById('foIndicaciones').value.trim() || null,
+        notas: document.getElementById('foNotas').value.trim() || null
+      };
 
-    if(!nombre || !correo || !rol){
-      msgBox.textContent = 'Faltan datos obligatorios.';
-      msgBox.className = 'text-danger small';
-      return;
-    }
+      try {
+        const res = await fetch('http://localhost:5000/admin/asistentes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(payload)
+        });
 
-    // Aquí llamarías backend:
-    // POST /api/alta-express  -> devuelve id, qr_url, etc.
-    msgBox.textContent = 'Asistente creado y QR generado (simulado).';
-    msgBox.className = 'text-success small';
+        const body = await res.json().catch(() => ({}));
 
-    // También podrías inyectarlo en la tabla de asistentes formales:
-    addAsistenteFormalRow({
-      nombre:nombre,
-      correo:correo,
-      empresa:document.getElementById('exEmpresa').value.trim(),
-      rol:rol,
-      qr:'QR_TEMP'
+        if (!res.ok || !body.ok) {
+          msgFormal.textContent = body.message || 'Error al guardar asistente.';
+          msgFormal.classList.add('text-danger');
+          return;
+        }
+
+        msgFormal.textContent = 'Asistente guardado correctamente.';
+        msgFormal.classList.add('text-success');
+        formFormal.reset();
+
+        // Opcional: aquí podrías agregar la fila a la tablaAsistentesFormales
+        // sin recargar la página.
+      } catch (err) {
+        console.error(err);
+        msgFormal.textContent = 'Error de comunicación con el servidor.';
+        msgFormal.classList.add('text-danger');
+      }
     });
-
-    e.target.reset();
-  });
-
-  // Asistentes formales mock table + helper para añadir filas
-  const tablaAsistentesFormales = document.getElementById('tablaAsistentesFormales');
-  function addAsistenteFormalRow(a){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${a.nombre||''}</td>
-      <td>${a.correo||''}</td>
-      <td>${a.empresa||''}</td>
-      <td>${a.rol||''}</td>
-      <td>${a.qr||''}</td>
-    `;
-    tablaAsistentesFormales.appendChild(tr);
   }
-
-  // mock inicial
-  addAsistenteFormalRow({nombre:'María López', correo:'maria@ejemplo.com', empresa:'PEMEX', rol:'ingeniero', qr:'QR123'});
-  addAsistenteFormalRow({nombre:'Adrián Reyes', correo:'adrian@fi.unam.mx', empresa:'UNAM', rol:'estudiante', qr:'QR987'});
-
-  // Guardar asistente formal (form grande)
-  document.getElementById('formAsistenteFormal').addEventListener('submit',(e)=>{
-    e.preventDefault();
-    const msg = document.getElementById('asistenteFormalMsg');
-
-    const data = {
-      nombre: document.getElementById('foNombre').value.trim(),
-      correo: document.getElementById('foCorreo').value.trim(),
-      tel:    document.getElementById('foTel').value.trim(),
-      empresa:document.getElementById('foEmpresa').value.trim(),
-      puesto: document.getElementById('foPuesto').value.trim(),
-      rol:    document.getElementById('foRol').value,
-      notas:  document.getElementById('foNotas').value.trim(),
-    };
-
-    if(!data.nombre || !data.correo || !data.rol){
-      msg.textContent = 'Faltan campos obligatorios.';
-      msg.className = 'text-danger small';
-      return;
-    }
-
-    // Aquí iría POST /api/asistentes
-    addAsistenteFormalRow({
-      nombre: data.nombre,
-      correo: data.correo,
-      empresa: data.empresa,
-      rol: data.rol,
-      qr: 'QR_new'
-    });
-
-    msg.textContent = 'Asistente guardado (simulado).';
-    msg.className = 'text-success small';
-    e.target.reset();
-  });
-
-  // Eventos mock
-  const tablaEventos = document.getElementById('tablaEventos');
-  function addEventoRow(ev){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${ev.nombre}</td>
-      <td>${ev.fecha}</td>
-      <td>${ev.lugar}</td>
-      <td>${ev.invitados} invit.</td>
-      <td>${ev.confirmados} conf.</td>
-    `;
-    tablaEventos.appendChild(tr);
-  }
-  addEventoRow({nombre:'Desayuno Asamblea Ordinaria', fecha:'15/11/2025', lugar:'CDMX', invitados:120, confirmados:95});
-  addEventoRow({nombre:'Networking AGFI Jóvenes', fecha:'02/12/2025', lugar:'Guadalajara', invitados:60, confirmados:42});
-
-  // Guardar evento
-  document.getElementById('formEvento').addEventListener('submit',(e)=>{
-    e.preventDefault();
-    const msg  = document.getElementById('eventoMsg');
-
-    const data = {
-      nombre: document.getElementById('evNombre').value.trim(),
-      fecha:  document.getElementById('evFecha').value,
-      lugar:  document.getElementById('evLugar').value.trim(),
-      notas:  document.getElementById('evNotas').value.trim(),
-    };
-
-    if(!data.nombre || !data.fecha || !data.lugar){
-      msg.textContent = 'Faltan campos obligatorios.';
-      msg.className = 'text-danger small';
-      return;
-    }
-
-    // POST /api/eventos
-    addEventoRow({nombre:data.nombre,fecha:data.fecha,lugar:data.lugar,invitados:0,confirmados:0});
-
-    msg.textContent = 'Evento guardado (simulado).';
-    msg.className = 'text-success small';
-    e.target.reset();
-  });
-
-  // Invitar / Recordar → aquí dispararía correo masivo
-  document.getElementById('btnInvitaciones').addEventListener('click',()=>{
-    // POST /api/eventos/:id/invitaciones
-    document.getElementById('eventoMsg').textContent = 'Invitaciones enviadas (simulado).';
-  });
-  document.getElementById('btnRecordatorios').addEventListener('click',()=>{
-    // POST /api/eventos/:id/recordatorios
-    document.getElementById('eventoMsg').textContent = 'Recordatorios enviados (simulado).';
-  });
-
-  // Admin users mock
-  const tablaAdmins = document.getElementById('tablaAdmins');
-  function addAdminRow(a){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${a.nombre}</td>
-      <td>${a.correo}</td>
-      <td>${a.rol}</td>
-      <td>${a.last || 'hoy'}</td>
-    `;
-    tablaAdmins.appendChild(tr);
-  }
-  addAdminRow({nombre:'Super Admin', correo:'admin@agfi.mx', rol:'admin', last:'28/10/2025 13:11'});
-  addAdminRow({nombre:'Staff Recepción', correo:'registro@agfi.mx', rol:'staff', last:'28/10/2025 09:20'});
-
-  document.getElementById('formAdminUser').addEventListener('submit',(e)=>{
-    e.preventDefault();
-    const msg = document.getElementById('adminUserMsg');
-
-    const data = {
-      correo: document.getElementById('adCorreo').value.trim(),
-      pass:   document.getElementById('adPass').value.trim(),
-      nombre: document.getElementById('adNombre').value.trim(),
-      rol:    document.getElementById('adRol').value,
-    };
-
-    if(!data.correo || !data.pass || !data.nombre || !data.rol){
-      msg.textContent = 'Faltan campos obligatorios.';
-      msg.className = 'text-danger small';
-      return;
-    }
-
-    // POST /api/admin-users
-    addAdminRow({nombre:data.nombre, correo:data.correo, rol:data.rol, last:'justo ahora'});
-    msg.textContent = 'Usuario admin creado (simulado).';
-    msg.className = 'text-success small';
-    e.target.reset();
-  });
-
-  // Cumpleaños mock
-  const tablaCumples = document.getElementById('tablaCumples');
-  function addCumpleRow(c){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${c.nombre}</td>
-      <td>${c.correo}</td>
-      <td>${c.edad}</td>
-      <td><button class="btn btn-sm btn-outline-secondary felicitar-btn">Felicitar</button></td>
-    `;
-    tablaCumples.appendChild(tr);
-  }
-  addCumpleRow({nombre:'Daniela Ruiz', correo:'daniela@example.com', edad:27});
-  addCumpleRow({nombre:'Luis Ortega', correo:'luis@empresa.com', edad:35});
-
-  document.getElementById('cumpleResumen').textContent = '2 personas';
-
-  document.getElementById('btnFelicitarTodos').addEventListener('click',()=>{
-    // POST /api/cumples/send-all
-    alert('Correos de cumpleaños enviados (simulado).');
-  });
-
-  tablaCumples.addEventListener('click',(e)=>{
-    if(e.target.classList.contains('felicitar-btn')){
-      // POST /api/cumples/send-one
-      alert('Correo de cumpleaños enviado (simulado).');
-    }
-  });
-
-  // QR SCAN mock
-  document.getElementById('btnBuscarQR').addEventListener('click',()=>{
-    const id = document.getElementById('qrInput').value.trim();
-    if(!id){ alert('Pega un código QR/ID.'); return; }
-
-    // GET /api/qr/:id
-    // mock:
-    document.getElementById('qrNombre').value  = 'Invitado ' + id;
-    document.getElementById('qrCorreo').value  = id+'@ejemplo.com';
-    document.getElementById('qrEmpresa').value = 'Empresa Demo';
-    document.getElementById('qrRol').value     = 'estudiante';
-  });
-
-  document.getElementById('btnMarcarAsistencia').addEventListener('click',()=>{
-    const id = document.getElementById('qrInput').value.trim();
-    if(!id){ alert('Sin QR.'); return; }
-    // POST /api/asistencia/checkin {id}
-    alert('Asistencia registrada sin cambios (simulado).');
-  });
-
-  document.getElementById('btnGuardarYAsistencia').addEventListener('click',()=>{
-    const id = document.getElementById('qrInput').value.trim();
-    // PUT /api/persona/:id  +  POST /api/asistencia/checkin {id}
-    alert('Datos actualizados y asistencia registrada (simulado).');
-  });
+});
 </script>
+
 </body>
 </html>
