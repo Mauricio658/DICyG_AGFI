@@ -2,7 +2,16 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-from models import db, Persona, Asistente, Rol, IndicacionMedica, AsistentePreferencia
+from models import (
+    db,
+    Persona,
+    Asistente,
+    Rol,
+    IndicacionMedica,
+    AsistentePreferencia,
+    Evento,
+    Registro
+)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 from io import BytesIO
@@ -394,3 +403,106 @@ def credencial_asistente(id_asistente):
         as_attachment=False,
         download_name=f"credencial_{id_asistente}.png"
     )
+
+# =====================================
+# 6) Crear un evento nuevo
+# =====================================
+@admin_bp.route("/eventos", methods=["POST"])
+@jwt_required()
+def crear_evento():
+    identidad = get_jwt_identity() or {}
+
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    data = request.get_json() or {}
+
+    nombre = data.get("nombre")
+    fecha = data.get("fecha")          # "YYYY-MM-DD"
+    lugar = data.get("lugar")          # sede
+    direccion = data.get("direccion")
+    ciudad = data.get("ciudad")
+    estado = data.get("estado")
+    pais = data.get("pais")
+    notas = data.get("notas")
+
+    if not nombre or not fecha or not lugar:
+        return jsonify({"ok": False, "message": "Faltan campos obligatorios."}), 400
+
+    try:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d")
+    except Exception:
+        return jsonify({"ok": False, "message": "Fecha inválida."}), 400
+
+    # Código único simple (puedes cambiarlo luego a algo más fancy)
+    codigo = f"EV-{int(datetime.utcnow().timestamp())}"
+
+    evento = Evento(
+        codigo=codigo,
+        nombre=nombre,
+        fecha_inicio=fecha_dt,
+        sede=lugar,
+        direccion=direccion,
+        ciudad=ciudad,
+        estado=estado,
+        pais=pais,
+        notas=notas,
+        creado_en=datetime.utcnow()
+    )
+
+    db.session.add(evento)
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "message": "Evento creado correctamente.",
+        "evento": {
+            "id_evento": evento.id_evento,
+            "codigo": evento.codigo,
+            "nombre": evento.nombre,
+            "fecha": fecha,
+            "lugar": evento.sede,
+            "direccion": evento.direccion,
+            "ciudad": evento.ciudad,
+            "estado": evento.estado,
+            "pais": evento.pais,
+            "notas": evento.notas,
+        }
+    }), 201
+
+# =====================================
+# 7) Listar eventos
+# =====================================
+
+@admin_bp.route("/eventos", methods=["GET"])
+@jwt_required()
+def listar_eventos():
+    identidad = get_jwt_identity() or {}
+
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    eventos = Evento.query.order_by(Evento.fecha_inicio.desc()).all()
+
+    # Total de asistentes oficiales (asistentes formales)
+    total_oficiales = Asistente.query.count()
+
+    data = []
+    for ev in eventos:
+        # Confirmados por evento (en tabla registros)
+        confirmados = Registro.query.filter_by(
+            id_evento=ev.id_evento,
+            confirmado=True
+        ).count()
+
+        data.append({
+            "id_evento": ev.id_evento,
+            "codigo": ev.codigo,
+            "nombre": ev.nombre,
+            "fecha": ev.fecha_inicio.strftime("%Y-%m-%d"),
+            "lugar": ev.sede,
+            "invitados": total_oficiales,   # 👈 AQUÍ va la cantidad de asistentes oficiales
+            "confirmados": confirmados
+        })
+
+    return jsonify({"ok": True, "eventos": data}), 200

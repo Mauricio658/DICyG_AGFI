@@ -501,14 +501,36 @@
               </div>
 
               <div class="col-md-3">
-                <label class="form-label req">Lugar</label>
-                <input type="text" class="form-control" id="evLugar" required>
+                <label class="form-label req">Sede / Lugar</label>
+                <input type="text" class="form-control" id="evLugar" placeholder="Ej. Hotel Fiesta Americana Reforma" required>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Dirección</label>
+                <input type="text" class="form-control" id="evDireccion" placeholder="Ej. Av. Paseo de la Reforma 123, Col. Juárez">
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Ciudad</label>
+                <input type="text" class="form-control" id="evCiudad" placeholder="CDMX">
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <input type="text" class="form-control" id="evEstado" placeholder="Ciudad de México">
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">País</label>
+                <input type="text" class="form-control" id="evPais" value="México">
               </div>
 
               <div class="col-12">
                 <label class="form-label">Descripción / notas logísticas</label>
-                <textarea class="form-control" id="evNotas" rows="2" placeholder="Ej. Salón principal piso 2, acceso por lobby B, traer credencial..."></textarea>
+                <textarea class="form-control" id="evNotas" rows="2"
+                  placeholder="Ej. Salón principal piso 2, acceso por lobby B, traer credencial..."></textarea>
               </div>
+
 
               <div class="col-12 d-flex flex-wrap gap-2 mt-3">
                 <button class="btn btn-agfi text-white" id="btnCrearEvento" type="submit">
@@ -910,6 +932,124 @@ document.addEventListener('DOMContentLoaded', () => {
   // 👉 CARGA INICIAL DE LA TABLA AL ENTRAR
   cargarAsistentesFormales();
 });
+
+// =========================
+// =========================
+// EVENTOS
+// =========================
+document.addEventListener("DOMContentLoaded", () => {
+  const token = localStorage.getItem("agfi_token");
+
+  const formEvento = document.getElementById("formEvento");
+  const msgEvento = document.getElementById("eventoMsg");
+  const tablaEventos = document.getElementById("tablaEventos");
+
+  if (!token) return;
+
+  // ------- 1. CARGAR EVENTOS --------
+  async function cargarEventos() {
+    tablaEventos.innerHTML = `
+      <tr><td colspan="5" class="text-muted">Cargando eventos...</td></tr>
+    `;
+
+    try {
+      const res = await fetch("http://localhost:5000/admin/eventos", {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      const body = await res.json();
+
+      if (!res.ok || !body.ok) {
+        tablaEventos.innerHTML = `
+          <tr><td colspan="5" class="text-danger">Error al cargar eventos.</td></tr>
+        `;
+        return;
+      }
+
+      const eventos = body.eventos || [];
+      tablaEventos.innerHTML = "";
+
+      if (eventos.length === 0) {
+        tablaEventos.innerHTML = `
+          <tr><td colspan="5" class="text-muted">Aún no has creado eventos.</td></tr>
+        `;
+        return;
+      }
+
+      eventos.forEach(ev => {
+        tablaEventos.innerHTML += `
+          <tr>
+            <td>${ev.nombre}</td>
+            <td>${ev.fecha}</td>
+            <td>${ev.lugar}</td>
+            <td>${ev.invitados}</td>
+            <td>${ev.confirmados}</td>
+          </tr>
+        `;
+      });
+
+    } catch (err) {
+      console.error(err);
+      tablaEventos.innerHTML = `
+        <tr><td colspan="5" class="text-danger">Error de conexión.</td></tr>
+      `;
+    }
+  }
+
+  // Cargar al inicio
+  cargarEventos();
+
+  // ------- 2. CREAR EVENTO --------
+  formEvento.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    msgEvento.textContent = "Guardando evento...";
+    msgEvento.classList.remove("text-danger", "text-success");
+
+    const payload = {
+      nombre: document.getElementById("evNombre").value.trim(),
+      fecha: document.getElementById("evFecha").value,
+      lugar: document.getElementById("evLugar").value.trim(),
+      direccion: document.getElementById("evDireccion").value.trim() || null,
+      ciudad: document.getElementById("evCiudad").value.trim() || null,
+      estado: document.getElementById("evEstado").value.trim() || null,
+      pais: document.getElementById("evPais").value.trim() || null,
+      notas: document.getElementById("evNotas").value.trim() || null
+    };
+
+
+    try {
+      const res = await fetch("http://localhost:5000/admin/eventos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const body = await res.json();
+
+      if (!res.ok || !body.ok) {
+        msgEvento.textContent = body.message || "Error al guardar.";
+        msgEvento.classList.add("text-danger");
+        return;
+      }
+
+      msgEvento.textContent = "Evento creado correctamente.";
+      msgEvento.classList.add("text-success");
+
+      formEvento.reset();
+      cargarEventos();
+
+    } catch (err) {
+      console.error(err);
+      msgEvento.textContent = "Error de conexión.";
+      msgEvento.classList.add("text-danger");
+    }
+  });
+});
+
+
 </script>
 
 
