@@ -178,6 +178,7 @@ def crear_asistente_formal():
     generacion = data.get("generacion")
     fecha_nac = data.get("fecha_nacimiento")  # "YYYY-MM-DD"
     indicaciones_txt = data.get("indicaciones_medicas")
+    indicaciones_desc = data.get("indicaciones_descripcion")
 
     if not nombre or not correo or not rol_front:
         return jsonify({
@@ -237,22 +238,30 @@ def crear_asistente_formal():
     db.session.flush()
 
     # Indicaciones médicas (si vienen)
+    # Indicaciones médicas (si vienen)
     if indicaciones_txt:
         texto = indicaciones_txt.strip()
         if texto:
             indic = IndicacionMedica.query.filter_by(nombre=texto).first()
             if not indic:
-                indic = IndicacionMedica(nombre=texto, descripcion=None)
+                # Si no existe, la creamos con la descripción que mandó el usuario (puede ser None)
+                indic = IndicacionMedica(
+                    nombre=texto,
+                    descripcion=indicaciones_desc
+                )
                 db.session.add(indic)
                 db.session.flush()
+            else:
+                # Si ya existía y ahora nos mandan una descripción, opcionalmente puedes actualizarla
+                if indicaciones_desc:
+                    indic.descripcion = indicaciones_desc
 
             pref = AsistentePreferencia(
                 id_asistente=asistente.id_asistente,
                 id_indicacion=indic.id_indicacion,
-                notas=None
+                notas=indicaciones_desc  # si quieres guardar también por asistente
             )
             db.session.add(pref)
-
     db.session.commit()
 
     return jsonify({

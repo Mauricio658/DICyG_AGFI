@@ -430,9 +430,15 @@
               </div>
 
               <div class="col-md-8">
-                <label class="form-label">Indicaciones médicas</label>
+                <label class="form-label">Indicaciones médicas (breve)</label>
                 <input type="text" class="form-control" id="foIndicaciones"
-                      placeholder="Ej. alergias, medicamento, condición específica">
+                      placeholder="Ej. Alergia a penicilina">
+              </div>
+
+              <div class="col-md-8">
+                <label class="form-label">Detalles de indicaciones médicas (opcional)</label>
+                <textarea class="form-control" id="foIndicacionesDesc" rows="2"
+                      placeholder="Ej. Reacción: erupciones en la piel, evitar antibióticos derivados."></textarea>
               </div>
 
               <div class="col-12">
@@ -780,6 +786,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generacion: document.getElementById('foGeneracion').value.trim() || null,
         fecha_nacimiento: document.getElementById('foFechaNac').value || null,
         indicaciones_medicas: document.getElementById('foIndicaciones').value.trim() || null,
+        indicaciones_descripcion: document.getElementById('foIndicacionesDesc').value.trim() || null,
         notas: document.getElementById('foNotas').value.trim() || null
       };
 
