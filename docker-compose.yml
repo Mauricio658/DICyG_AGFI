@@ -25,6 +25,11 @@ services:
       FLASK_ENV: development
     ports:
       - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - ./Images:/Images
+
+      
 
   web:
     image: nginx:1.27-alpine

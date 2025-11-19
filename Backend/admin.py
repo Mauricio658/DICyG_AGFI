@@ -5,6 +5,10 @@ from datetime import datetime
 from models import db, Persona, Asistente, Rol, IndicacionMedica, AsistentePreferencia
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+from io import BytesIO
+from flask import send_file, current_app
+import qrcode
+from PIL import Image, ImageDraw, ImageFont
 
 
 # =====================================
@@ -316,3 +320,77 @@ def listar_asistentes_formales():
         "ok": True,
         "asistentes": data
     }), 200
+
+# =====================================
+# 5) Credencial con QR para asistentes
+# =====================================
+@admin_bp.route("/credencial/<int:id_asistente>.png", methods=["GET"])
+def credencial_asistente(id_asistente):
+    # Buscar asistente + persona
+    asistente = Asistente.query.filter_by(id_asistente=id_asistente).first()
+    if not asistente or not asistente.persona:
+        return jsonify({"ok": False, "message": "Asistente no encontrado."}), 404
+
+    persona = asistente.persona
+
+    # Texto del QR: AGFI-<id_asistente>
+    qr_text = f"AGFI-{id_asistente}"
+
+    # Generar imagen de QR
+    qr_img = qrcode.make(qr_text).resize((300, 300))
+
+    # Crear credencial base
+    # Tamaño aproximado tipo gafete
+    width, height = 600, 900
+    card = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(card)
+
+    # Intentar cargar logo
+    logo = None
+    try:
+        logo_path = os.path.join(current_app.root_path, "logo_AGFI.png")      
+        logo = Image.open(logo_path).convert("RGBA")
+        logo.thumbnail((180, 180))
+        card.paste(logo, (40, 40), logo)
+    except Exception as e:
+        # Si no hay logo, no truena, solo sigue sin él
+        print(f"[WARN] No se pudo cargar logo_AGFI.png: {e}")
+
+    # Tipografías (usamos la default del sistema)
+    font_big = ImageFont.load_default()
+    font_small = ImageFont.load_default()
+
+    # Nombre
+    nombre_text = persona.nombre_completo or ""
+    draw.text((40, 250), f"Nombre:", font=font_small, fill="black")
+    draw.text((40, 280), nombre_text, font=font_big, fill="black")
+
+    # Generación
+    gen_text = asistente.generacion or ""
+    draw.text((40, 330), f"Generación:", font=font_small, fill="black")
+    draw.text((40, 360), gen_text, font=font_big, fill="black")
+
+    # Carrera
+    carrera_text = persona.carrera or ""
+    draw.text((40, 410), f"Carrera:", font=font_small, fill="black")
+    draw.text((40, 440), carrera_text, font=font_big, fill="black")
+
+    # Colocar QR en la parte baja
+    qr_x = (width - qr_img.width) // 2
+    qr_y = height - qr_img.height - 80
+    card.paste(qr_img, (qr_x, qr_y))
+
+    # Texto pequeño debajo del QR con el código
+    draw.text((qr_x, qr_y + qr_img.height + 10), qr_text, font=font_small, fill="black")
+
+    # Devolver como PNG
+    buffer = BytesIO()
+    card.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype="image/png",
+        as_attachment=False,
+        download_name=f"credencial_{id_asistente}.png"
+    )

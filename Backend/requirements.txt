@@ -18,3 +18,5 @@ python-dotenv
 Flask-JWT-Extended
 passlib[bcrypt]
 cryptography
+qrcode[pil]
+pillow

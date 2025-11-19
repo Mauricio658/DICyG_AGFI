@@ -817,19 +817,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Renderizar tabla
       tablaAsistentesBody.innerHTML = '';
-      asistentes.forEach(a => {
-        const tr = document.createElement('tr');
+     asistentes.forEach(a => {
+      const tr = document.createElement('tr');
 
-        tr.innerHTML = `
-          <td>${a.nombre || ''}</td>
-          <td>${a.correo || ''}</td>
-          <td>${a.empresa || ''}</td>
-          <td>${a.rol || ''}</td>
-          <td><span class="text-muted small">QR pendiente</span></td>
-        `;
+      const credencialUrl = `http://localhost:5000/admin/credencial/${a.id_asistente}.png`;
 
-        tablaAsistentesBody.appendChild(tr);
-      });
+      tr.innerHTML = `
+        <td>${a.nombre || ''}</td>
+        <td>${a.correo || ''}</td>
+        <td>${a.empresa || ''}</td>
+        <td>${a.rol || ''}</td>
+        <td>
+          <a href="${credencialUrl}" target="_blank">
+            <img src="${credencialUrl}" alt="QR / credencial" style="height:80px;">
+          </a>
+        </td>
+      `;
+
+      tablaAsistentesBody.appendChild(tr);
+    });
+
 
     } catch (err) {
       console.error(err);
