@@ -60,7 +60,7 @@ CREATE TABLE asistentes (
   generacion      VARCHAR(40)  NULL,
   mes_cumple      TINYINT UNSIGNED NULL,
   dia_cumple      TINYINT UNSIGNED NULL,
-  -- campos de tracking propios de estatus asistente
+  experiencia TEXT NULL,
   activo          BOOLEAN DEFAULT TRUE,
 
   CONSTRAINT fk_asistente_persona
@@ -190,26 +190,21 @@ CREATE TABLE asistencia (
 #    - Se asocian a asistentes (o sea a la persona cuando ya es asistente formal)
 # ===============================================================
 
-CREATE TABLE indicaciones_medicas (
-  id_indicacion SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-  nombre        VARCHAR(80)  NOT NULL,
-  descripcion   VARCHAR(200) NULL
-);
+CREATE TABLE asistente_medico (
+  id_asistente BIGINT UNSIGNED PRIMARY KEY,
+  tipo_sangre VARCHAR(10) NULL,
+  alergias TEXT NULL,
+  medicamentos_actuales TEXT NULL,
+  padecimientos TEXT NULL,
+  contacto_emergencia_nombre VARCHAR(200) NULL,
+  contacto_emergencia_telefono VARCHAR(20) NULL,
 
-CREATE TABLE asistente_preferencia (
-  id_asistente   BIGINT UNSIGNED NOT NULL,
-  id_indicacion  SMALLINT UNSIGNED NOT NULL,
-  notas          VARCHAR(200) NULL,
-  PRIMARY KEY (id_asistente, id_indicacion),
-
-  CONSTRAINT fk_ap_asistente
+  CONSTRAINT fk_am_asistente
     FOREIGN KEY (id_asistente)
-    REFERENCES asistentes(id_asistente),
-
-  CONSTRAINT fk_ap_preferencia
-    FOREIGN KEY (id_indicacion)
-    REFERENCES indicaciones_medicas(id_indicacion)
+    REFERENCES asistentes(id_asistente)
+    ON DELETE CASCADE
 );
+
 
 # ===============================================================
 # 9) LOGS (auditoría)

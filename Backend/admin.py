@@ -7,11 +7,12 @@ from models import (
     Persona,
     Asistente,
     Rol,
-    IndicacionMedica,
-    AsistentePreferencia,
+    AsistenteMedico,
     Evento,
     Registro
 )
+
+
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 from io import BytesIO
@@ -44,126 +45,6 @@ def verify_admin():
     }), 200
 
 
-
-# =====================================
-# 2) Crear usuario admin/staff
-# =====================================
-@admin_bp.route("/usuarios", methods=["POST"])
-@jwt_required()
-def crear_usuario():
-    identidad = get_jwt_identity() or {}
-    if identidad.get("rol") != "admin":
-        return jsonify({
-            "ok": False,
-            "message": "Solo un administrador puede crear usuarios."
-        }), 403
-
-    data = request.get_json() or {}
-
-    # Campos obligatorios
-    nombre = data.get("nombre")
-    correo = data.get("correo")
-    password = data.get("password")
-    rol_front = data.get("rol")  # admin o staff
-
-    # Campos extra solicitados
-    generacion = data.get("generacion")
-    carrera = data.get("carrera")
-    fecha_nac = data.get("fecha_nacimiento")  # "YYYY-MM-DD"
-    indicaciones_txt = data.get("indicaciones_medicas")
-
-    if not nombre or not correo or not password or not rol_front or not carrera:
-        return jsonify({
-            "ok": False,
-            "message": "Faltan campos obligatorios."
-        }), 400
-
-    # ¿Existe correo?
-    existente = Persona.query.filter_by(correo=correo).first()
-    if existente:
-        return jsonify({
-            "ok": False,
-            "message": "El correo ya está registrado."
-        }), 409
-
-    # Crear persona
-    persona = Persona(
-        nombre_completo=nombre,
-        correo=correo,
-        password_hash=password,   # QUEDA SOLO ESTE
-        telefono=telefono,
-        empresa=empresa,
-        puesto=puesto,
-        carrera=carrera,
-        creado_en=datetime.utcnow()
-    )
-
-    db.session.add(persona)
-    db.session.flush()
-
-    # Mapear rol admin/staff -> nombre en BD
-    nombre_rol_db = "administrador" if rol_front == "admin" else "staff"
-    rol_obj = Rol.query.filter_by(nombre_rol=nombre_rol_db).first()
-    if not rol_obj:
-        db.session.rollback()
-        return jsonify({"ok": False, "message": "Rol no encontrado en la base."}), 500
-
-    # Procesar fecha nacimiento
-    mes = None
-    dia = None
-    if fecha_nac:
-        try:
-            f = datetime.strptime(fecha_nac, "%Y-%m-%d").date()
-            mes, dia = f.month, f.day
-        except:
-            pass
-
-    # Crear asistente ligado 1 a 1
-    asistente = Asistente(
-        id_asistente=persona.id_persona,
-        id_rol=rol_obj.id_rol,
-        generacion=generacion,
-        mes_cumple=mes,
-        dia_cumple=dia,
-        activo=True
-    )
-    db.session.add(asistente)
-    db.session.flush()
-
-    # Indicaciones médicas (si vienen)
-    if indicaciones_txt:
-        texto = indicaciones_txt.strip()
-        if texto:
-            indic = IndicacionMedica.query.filter_by(nombre=texto).first()
-            if not indic:
-                indic = IndicacionMedica(nombre=texto, descripcion=None)
-                db.session.add(indic)
-                db.session.flush()
-
-            pref = AsistentePreferencia(
-                id_asistente=asistente.id_asistente,
-                id_indicacion=indic.id_indicacion,
-                notas=None
-            )
-            db.session.add(pref)
-
-    db.session.commit()
-
-    return jsonify({
-        "ok": True,
-        "message": "Usuario creado correctamente.",
-        "user": {
-            "id_persona": persona.id_persona,
-            "correo": persona.correo,
-            "nombre": persona.nombre_completo,
-            "rol": rol_front,
-            "generacion": generacion,
-            "carrera": carrera,
-            "fecha_nacimiento": fecha_nac,
-            "indicaciones_medicas": indicaciones_txt
-        }
-    }), 201
-
 # =====================================
 # 3) Alta de asistentes formales
 # =====================================
@@ -190,8 +71,15 @@ def crear_asistente_formal():
     carrera = data.get("carrera")
     generacion = data.get("generacion")
     fecha_nac = data.get("fecha_nacimiento")  # "YYYY-MM-DD"
-    indicaciones_txt = data.get("indicaciones_medicas")
-    indicaciones_desc = data.get("indicaciones_descripcion")
+
+    experiencia = data.get("experiencia")
+    tipo_sangre = data.get("tipo_sangre")
+    alergias = data.get("alergias")
+    medicamentos_actuales = data.get("medicamentos_actuales")
+    padecimientos = data.get("padecimientos")
+    contacto_emergencia_nombre = data.get("contacto_emergencia_nombre")
+    contacto_emergencia_telefono = data.get("contacto_emergencia_telefono")
+
 
     if not nombre or not correo or not rol_front:
         return jsonify({
@@ -216,7 +104,7 @@ def crear_asistente_formal():
         empresa=empresa,
         puesto=puesto,
         carrera=carrera,
-        creado_en=datetime.utcnow()
+        creado_en=datetime.utcnow(),
     )
 
     db.session.add(persona)
@@ -245,36 +133,26 @@ def crear_asistente_formal():
         generacion=generacion,
         mes_cumple=mes,
         dia_cumple=dia,
+        experiencia=experiencia,
         activo=True
     )
     db.session.add(asistente)
     db.session.flush()
 
-    # Indicaciones médicas (si vienen)
-    # Indicaciones médicas (si vienen)
-    if indicaciones_txt:
-        texto = indicaciones_txt.strip()
-        if texto:
-            indic = IndicacionMedica.query.filter_by(nombre=texto).first()
-            if not indic:
-                # Si no existe, la creamos con la descripción que mandó el usuario (puede ser None)
-                indic = IndicacionMedica(
-                    nombre=texto,
-                    descripcion=indicaciones_desc
-                )
-                db.session.add(indic)
-                db.session.flush()
-            else:
-                # Si ya existía y ahora nos mandan una descripción, opcionalmente puedes actualizarla
-                if indicaciones_desc:
-                    indic.descripcion = indicaciones_desc
+        # 🔹 Crear/guardar datos médicos si existe al menos un dato
+    if any([tipo_sangre, alergias, medicamentos_actuales,
+            padecimientos, contacto_emergencia_nombre, contacto_emergencia_telefono]):
+        datos_medicos = AsistenteMedico(
+            id_asistente=asistente.id_asistente,
+            tipo_sangre=tipo_sangre,
+            alergias=alergias,
+            medicamentos_actuales=medicamentos_actuales,
+            padecimientos=padecimientos,
+            contacto_emergencia_nombre=contacto_emergencia_nombre,
+            contacto_emergencia_telefono=contacto_emergencia_telefono
+        )
+        db.session.add(datos_medicos)
 
-            pref = AsistentePreferencia(
-                id_asistente=asistente.id_asistente,
-                id_indicacion=indic.id_indicacion,
-                notas=indicaciones_desc  # si quieres guardar también por asistente
-            )
-            db.session.add(pref)
     db.session.commit()
 
     return jsonify({
@@ -290,9 +168,16 @@ def crear_asistente_formal():
             "carrera": carrera,
             "generacion": generacion,
             "fecha_nacimiento": fecha_nac,
-            "indicaciones_medicas": indicaciones_txt
+            "experiencia": experiencia,
+            "tipo_sangre": tipo_sangre,
+            "alergias": alergias,
+            "medicamentos_actuales": medicamentos_actuales,
+            "padecimientos": padecimientos,
+            "contacto_emergencia_nombre": contacto_emergencia_nombre,
+            "contacto_emergencia_telefono": contacto_emergencia_telefono
         }
     }), 201
+
 
 # =====================================
 # 4) Listar asistentes formales 

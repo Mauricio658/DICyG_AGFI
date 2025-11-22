@@ -430,16 +430,58 @@
               </div>
 
               <div class="col-md-8">
-                <label class="form-label">Indicaciones médicas (breve)</label>
-                <input type="text" class="form-control" id="foIndicaciones"
-                      placeholder="Ej. Alergia a penicilina">
-              </div>
-
-              <div class="col-md-8">
                 <label class="form-label">Detalles de indicaciones médicas (opcional)</label>
                 <textarea class="form-control" id="foIndicacionesDesc" rows="2"
                       placeholder="Ej. Reacción: erupciones en la piel, evitar antibióticos derivados."></textarea>
               </div>
+
+              <!-- 🔹 NUEVO: EXPERIENCIA -->
+              <div class="col-md-8">
+                <label class="form-label">Experiencia académica / laboral</label>
+                <textarea class="form-control" id="foExperiencia" rows="2"
+                  placeholder="Ej. Ingeniero en sistemas, 5 años en AGFI, experiencia en redes..."></textarea>
+              </div>
+
+              <!-- 🔹 NUEVO: DATOS MÉDICOS Y CONTACTO DE EMERGENCIA -->
+              <div class="col-12 mt-2">
+                <h6 class="fw-semibold">Datos médicos y contacto de emergencia</h6>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Tipo de sangre</label>
+                <input type="text" class="form-control" id="foTipoSangre" placeholder="Ej. O+, A-, B+, AB+">
+              </div>
+
+              <div class="col-md-9">
+                <label class="form-label">Alergias</label>
+                <textarea class="form-control" id="foAlergias" rows="1"
+                  placeholder="Ej. Alergia a penicilina, mariscos, frutos secos..."></textarea>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Medicamentos actuales</label>
+                <textarea class="form-control" id="foMedicamentos" rows="1"
+                  placeholder="Ej. Metformina 850mg, Losartán 50mg..."></textarea>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Padecimientos</label>
+                <textarea class="form-control" id="foPadecimientos" rows="1"
+                  placeholder="Ej. Hipertensión, diabetes, asma..."></textarea>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Contacto de emergencia (nombre)</label>
+                <input type="text" class="form-control" id="foContactoNombre"
+                  placeholder="Ej. Juan Pérez (hermano)">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Teléfono de contacto de emergencia</label>
+                <input type="tel" class="form-control" id="foContactoTel"
+                  placeholder="Ej. 55 1234 5678">
+              </div>
+
 
               <div class="col-12">
                 <label class="form-label">Notas internas</label>
@@ -880,7 +922,7 @@ document.addEventListener('DOMContentLoaded', () => {
       msgFormal.textContent = 'Guardando asistente...';
       msgFormal.classList.remove('text-danger', 'text-success');
 
-      const payload = {
+    const payload = {
         nombre: document.getElementById('foNombre').value.trim(),
         correo: document.getElementById('foCorreo').value.trim(),
         password: document.getElementById('foPass').value.trim(),
@@ -891,10 +933,18 @@ document.addEventListener('DOMContentLoaded', () => {
         carrera: document.getElementById('foCarrera').value.trim() || null,
         generacion: document.getElementById('foGeneracion').value.trim() || null,
         fecha_nacimiento: document.getElementById('foFechaNac').value || null,
-        indicaciones_medicas: document.getElementById('foIndicaciones').value.trim() || null,
-        indicaciones_descripcion: document.getElementById('foIndicacionesDesc').value.trim() || null,
-        notas: document.getElementById('foNotas').value.trim() || null
-      };
+        notas: document.getElementById('foNotas').value.trim() || null,
+
+        // NUEVOS CAMPOS
+        experiencia: document.getElementById('foExperiencia').value.trim() || null,
+        tipo_sangre: document.getElementById('foTipoSangre').value.trim() || null,
+        alergias: document.getElementById('foAlergias').value.trim() || null,
+        medicamentos_actuales: document.getElementById('foMedicamentos').value.trim() || null,
+        padecimientos: document.getElementById('foPadecimientos').value.trim() || null,
+        contacto_emergencia_nombre: document.getElementById('foContactoNombre').value.trim() || null,
+        contacto_emergencia_telefono: document.getElementById('foContactoTel').value.trim() || null
+    };
+
 
       try {
         const res = await fetch('http://localhost:5000/admin/asistentes', {

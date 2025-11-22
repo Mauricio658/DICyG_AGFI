@@ -54,16 +54,21 @@ class Asistente(db.Model):
     generacion = db.Column(db.String(40))
     mes_cumple = db.Column(db.SmallInteger)
     dia_cumple = db.Column(db.SmallInteger)
+    experiencia = db.Column(db.Text)
     activo = db.Column(db.Boolean, default=True)
+
 
     persona = db.relationship("Persona", back_populates="asistente")
     rol = db.relationship("Rol", back_populates="asistentes")
     registros = db.relationship("Registro", back_populates="asistente")
 
-    preferencias = db.relationship("AsistentePreferencia", back_populates="asistente")
-
-    # 👇 ESTA LÍNEA ES LA QUE FALTABA
+    datos_medicos = db.relationship(
+        "AsistenteMedico",
+        back_populates="asistente",
+        uselist=False
+    )
     logs = db.relationship("Log", back_populates="asistente")
+
 
 
 
@@ -157,32 +162,27 @@ class Asistencia(db.Model):
 # ===============================================================
 # 8) INDICACIONES MÉDICAS
 # ===============================================================
-class IndicacionMedica(db.Model):
-    __tablename__ = "indicaciones_medicas"
+class AsistenteMedico(db.Model):
+    __tablename__ = "asistente_medico"
 
-    id_indicacion = db.Column(db.SmallInteger, primary_key=True, autoincrement=True)
-    nombre = db.Column(db.String(80), nullable=False)
-    descripcion = db.Column(db.String(200))
+    id_asistente = db.Column(
+        db.BigInteger,
+        db.ForeignKey("asistentes.id_asistente", ondelete="CASCADE"),
+        primary_key=True
+    )
 
-    asistentes = db.relationship("AsistentePreferencia", back_populates="indicacion")
+    tipo_sangre = db.Column(db.String(10))
+    alergias = db.Column(db.Text)
+    medicamentos_actuales = db.Column(db.Text)
+    padecimientos = db.Column(db.Text)
+    contacto_emergencia_nombre = db.Column(db.String(200))
+    contacto_emergencia_telefono = db.Column(db.String(20))
 
-
-# ===============================================================
-# 9) ASISTENTE PREFERENCIA (N:N)
-# ===============================================================
-class AsistentePreferencia(db.Model):
-    __tablename__ = "asistente_preferencia"
-
-    id_asistente = db.Column(db.BigInteger, db.ForeignKey("asistentes.id_asistente"), primary_key=True)
-    id_indicacion = db.Column(db.SmallInteger, db.ForeignKey("indicaciones_medicas.id_indicacion"), primary_key=True)
-    notas = db.Column(db.String(200))
-
-    asistente = db.relationship("Asistente", back_populates="preferencias")
-    indicacion = db.relationship("IndicacionMedica", back_populates="asistentes")
+    asistente = db.relationship("Asistente", back_populates="datos_medicos")
 
 
 # ===============================================================
-# 10) LOGS
+# 9) LOGS
 # ===============================================================
 class Log(db.Model):
     __tablename__ = "logs"
