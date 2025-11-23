@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from auth import registrar_log  # reutilizamos tu logger de auth
-from models import db, Persona, Asistente, AsistenteMedico, Rol, Registro, Evento
+from models import db, Persona, Asistente, AsistenteMedico, Rol, BuzonComentario,Registro, Evento
 
 
 perfil_bp = Blueprint("perfil", __name__, url_prefix="/perfil")
@@ -347,3 +347,54 @@ def actualizar_rsvp(id_registro):
         "confirmado": registro.confirmado,
         "fecha_confirmacion": registro.fecha_confirmacion.isoformat() if registro.fecha_confirmacion else None
     }), 200
+
+# =====================================
+# 5) Enviar comentario al buzón (anónimo)
+# =====================================
+
+@perfil_bp.route("/buzon", methods=["POST"])
+@jwt_required()
+def enviar_buzon():
+    """
+    Guarda un comentario anónimo en la tabla buzon_comentarios.
+    NO se relaciona con persona / asistente en la BD.
+    """
+    data = request.get_json() or {}
+
+    asunto = (data.get("asunto") or "").strip()
+    mensaje = (data.get("mensaje") or "").strip()
+    evento_relacionado = (data.get("evento_relacionado") or "").strip() or None
+
+    if not asunto or not mensaje:
+        return jsonify({"ok": False, "message": "Asunto y mensaje son obligatorios."}), 400
+
+    comentario = BuzonComentario(
+        asunto=asunto,
+        mensaje=mensaje,
+        evento_relacionado=evento_relacionado,
+        creado_en=datetime.utcnow()
+    )
+
+    try:
+        db.session.add(comentario)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "ok": False,
+            "message": "Error al guardar tu comentario.",
+            "error": str(e)
+        }), 500
+
+    # Log opcional, pero SIN vincular id_asistente → sigue siendo anónimo en datos
+    registrar_log(
+        id_asistente=None,
+        accion="Buzón de comentarios (anónimo)",
+        descripcion=f"Se recibió comentario anónimo. Asunto: {asunto[:80]}",
+        actor="anonimo"
+    )
+
+    return jsonify({
+        "ok": True,
+        "message": "Tu comentario se envió de forma anónima. ¡Gracias por ayudarnos a mejorar!"
+    }), 201

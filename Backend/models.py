@@ -203,3 +203,16 @@ class Log(db.Model):
     asistente = db.relationship("Asistente", back_populates="logs", foreign_keys=[id_asistente])
     registro = db.relationship("Registro", back_populates="logs")
     invitado_ulm = db.relationship("InvitadoULM", back_populates="logs")
+
+# ===============================================================
+# BUZÓN DE SUGERENCIAS
+# ===============================================================
+class BuzonComentario(db.Model):
+    __tablename__ = "buzon_comentarios"
+
+    id_comentario = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    asunto = db.Column(db.String(150), nullable=False)
+    mensaje = db.Column(db.Text, nullable=False)
+    evento_relacionado = db.Column(db.String(200))
+    creado_en = db.Column(db.DateTime, nullable=False)
+

@@ -296,3 +296,18 @@ JOIN asistentes a   ON a.id_asistente = r.id_asistente
 JOIN personas  p    ON p.id_persona   = a.id_asistente
 LEFT JOIN roles rl  ON rl.id_rol      = a.id_rol
 JOIN eventos e      ON e.id_evento    = r.id_evento;
+
+# ===========================================================
+#Buzon de sugerencias
+CREATE TABLE buzon_comentarios (
+  id_comentario      BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  asunto             VARCHAR(150) NOT NULL,
+  mensaje            TEXT NOT NULL,
+  evento_relacionado VARCHAR(200) NULL,
+  creado_en          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+# ===============================================================
+# FIN DEL ESQUEMA
+# ===============================================================

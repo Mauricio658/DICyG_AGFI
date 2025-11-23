@@ -15,7 +15,6 @@
       <img src="/Images/logo_AGFI.jpeg" class="brand-mark"  style="height:125px;" alt="AGFI" onerror="this.style.display='none'">
       <div class="fw-bold">AGFI • Mi cuenta</div>
       <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
-        <a href="#" class="btn btn-outline-secondary btn-sm">Mis eventos</a>
         <a id="logoutBtn" class="btn btn-outline-secondary btn-sm">Cerrar Sesión</a>
       </div>
     </div>
@@ -471,18 +470,45 @@
 
       const asunto  = document.getElementById('inpAsunto').value.trim();
       const mensaje = document.getElementById('inpMensajeBuzon').value.trim();
+      const eventoRelacionado = document.getElementById('inpEventoRelacionado')
+        ? document.getElementById('inpEventoRelacionado').value.trim()
+        : "";
 
       if (!asunto || !mensaje) {
         alert('Por favor llena asunto y mensaje.');
         return;
       }
 
-      // Por ahora solo simulamos éxito en front
-      // Luego conectamos a /buzon o algo similar en el backend
-      alert('Tu comentario ha sido enviado. ¡Gracias por ayudarnos a mejorar!');
-      formBuzon.reset();
+      const payload = {
+        asunto,
+        mensaje,
+        evento_relacionado: eventoRelacionado || null
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/perfil/buzon`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        console.log('DEBUG POST /perfil/buzon =>', res.status, data);
+
+        if (!res.ok || !data.ok) {
+          alert(data.message || 'Error al enviar tu comentario.');
+          return;
+        }
+
+        alert(data.message || 'Tu comentario se envió de forma anónima. ¡Gracias!');
+        formBuzon.reset();
+      } catch (err) {
+        console.error('Error enviando comentario de buzón', err);
+        alert('Error de conexión al enviar tu comentario.');
+      }
     });
   }
+
 
   // Cargar próximos eventos y manejar confirmaciones
     function formatFechaCorta(iso) {
