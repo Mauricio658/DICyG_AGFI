@@ -768,15 +768,15 @@ def importar_pase_lista_csv():
     }), 200
 
 # =====================================
-# 12) Buscar asistente por QR + evento
+# 12) Buscar asistente por QR + evento (incluye datos médicos)
 # =====================================
 @admin_bp.route("/qr_lookup", methods=["GET"])
 @jwt_required()
 def qr_lookup():
     """
     Busca a un asistente a partir del texto del QR (o id numérico)
-    y del evento seleccionado. Devuelve datos básicos de la persona
-    y el estado de asistencia para ese evento.
+    y del evento seleccionado. Devuelve datos de la persona,
+    datos médicos (si existen) y el estado de asistencia para ese evento.
     """
     identidad = get_jwt_identity() or {}
     if identidad.get("rol") not in ("admin", "staff"):
@@ -799,6 +799,9 @@ def qr_lookup():
     persona = asistente.persona
     rol = asistente.rol
 
+    # 🔹 Datos médicos
+    medico = AsistenteMedico.query.get(id_asistente)
+
     # Buscar registro para ese evento
     registro = Registro.query.filter_by(
         id_evento=id_evento,
@@ -807,19 +810,32 @@ def qr_lookup():
 
     asistencia_fisica = registro.asistencia_registro if registro else None
 
+    asist_json = {
+        "id_asistente": id_asistente,
+        "codigo_qr": f"AGFI-{id_asistente}",
+        "nombre": persona.nombre_completo,
+        "correo": persona.correo,
+        "empresa": persona.empresa,
+        "telefono": persona.telefono,
+        "carrera": persona.carrera,
+        "generacion": asistente.generacion,
+        "rol": rol.nombre_rol if rol else None,
+    }
+
+    # Si hay datos médicos, los agregamos
+    if medico:
+        asist_json.update({
+            "tipo_sangre": medico.tipo_sangre,
+            "alergias": medico.alergias,
+            "medicamentos_actuales": medico.medicamentos_actuales,
+            "padecimientos": medico.padecimientos,
+            "contacto_emergencia_nombre": medico.contacto_emergencia_nombre,
+            "contacto_emergencia_telefono": medico.contacto_emergencia_telefono,
+        })
+
     response = {
         "ok": True,
-        "asistente": {
-            "id_asistente": id_asistente,
-            "codigo_qr": f"AGFI-{id_asistente}",
-            "nombre": persona.nombre_completo,
-            "correo": persona.correo,
-            "empresa": persona.empresa,
-            "telefono": persona.telefono,
-            "carrera": persona.carrera,
-            "generacion": asistente.generacion,
-            "rol": rol.nombre_rol if rol else None,
-        },
+        "asistente": asist_json,
         "registro": None,
         "asistencia": None
     }
@@ -847,14 +863,21 @@ def qr_lookup():
 # =====================================
 # 13) Actualizar datos básicos y marcar asistencia
 # =====================================
+
 @admin_bp.route("/qr_checkin", methods=["POST"])
 @jwt_required()
 def qr_checkin():
     """
-    Marca asistencia física usando la tabla 'asistencia'.
-    - Puede recibir 'code' (AGFI-123 o '123') o directamente 'id_asistente'.
-    - Requiere 'id_evento'.
-    - Opcionalmente puede actualizar datos de Persona/Asistente (nombre, correo, empresa, rol, etc.).
+    Guarda cambios en los datos del asistente (incluyendo datos médicos)
+    y registra asistencia física en la tabla 'asistencia'.
+
+    Espera JSON con:
+    - id_evento (obligatorio)
+    - id_asistente o code (AGFI-123 o '123')
+    - nombre, correo, empresa, telefono, carrera, generacion, experiencia
+    - rol  (ingeniero / becario / estudiante)
+    - tipo_sangre, alergias, medicamentos_actuales, padecimientos
+    - contacto_emergencia_nombre, contacto_emergencia_telefono
     """
     identidad = get_jwt_identity() or {}
     if identidad.get("rol") not in ("admin", "staff"):
@@ -862,6 +885,7 @@ def qr_checkin():
 
     data = request.get_json() or {}
 
+    # ---- 1) Validar evento ----
     id_evento = data.get("id_evento")
     if not id_evento:
         return jsonify({"ok": False, "message": "id_evento es requerido."}), 400
@@ -875,7 +899,7 @@ def qr_checkin():
     if not evento:
         return jsonify({"ok": False, "message": "Evento no encontrado."}), 404
 
-    # Resolver id_asistente
+    # ---- 2) Resolver id_asistente (id o code) ----
     id_asistente = data.get("id_asistente")
     if id_asistente is None:
         code = data.get("code")
@@ -892,13 +916,24 @@ def qr_checkin():
 
     persona = asistente.persona
 
-    # --------- 1) Actualizar datos básicos si vienen en el payload ---------
-    nombre = data.get("nombre")
-    correo = data.get("correo")
-    empresa = data.get("empresa")
-    rol_front = data.get("rol")  # ingeniero / becario / estudiante
+    # ---- 3) Campos que pueden venir en el JSON ----
+    nombre      = data.get("nombre")
+    correo      = data.get("correo")
+    empresa     = data.get("empresa")
+    telefono    = data.get("telefono")
+    carrera     = data.get("carrera")
+    generacion  = data.get("generacion")
+    experiencia = data.get("experiencia")
+    rol_front   = data.get("rol")  # ingeniero / becario / estudiante
 
-    # Validar correo único si se cambia
+    tipo_sangre                  = data.get("tipo_sangre")
+    alergias                     = data.get("alergias")
+    medicamentos_actuales        = data.get("medicamentos_actuales")
+    padecimientos                = data.get("padecimientos")
+    contacto_emergencia_nombre   = data.get("contacto_emergencia_nombre")
+    contacto_emergencia_telefono = data.get("contacto_emergencia_telefono")
+
+    # ---- 4) Validar correo único si cambia ----
     if correo and correo != persona.correo:
         existe = Persona.query.filter(
             Persona.correo == correo,
@@ -910,30 +945,57 @@ def qr_checkin():
                 "message": "Ya existe otra persona con ese correo."
             }), 409
 
+    # ---- 5) Actualizar Persona ----
     if nombre:
         persona.nombre_completo = nombre.strip()
     if correo:
         persona.correo = correo.strip()
     if empresa is not None:
         persona.empresa = empresa.strip() if isinstance(empresa, str) else empresa
+    if telefono is not None:
+        persona.telefono = telefono.strip() if isinstance(telefono, str) else telefono
+    if carrera is not None:
+        persona.carrera = carrera.strip() if isinstance(carrera, str) else carrera
 
-    # Actualizar rol si viene
+    # ---- 6) Actualizar Asistente (rol, generación, experiencia) ----
     if rol_front:
         rol_obj = Rol.query.filter_by(nombre_rol=rol_front).first()
         if not rol_obj:
             return jsonify({"ok": False, "message": "Rol de asistente no válido."}), 400
         asistente.id_rol = rol_obj.id_rol
 
-    # --------- 2) Garantizar que exista un registro para ese evento ---------
-    ahora = datetime.utcnow()
+    if generacion is not None:
+        asistente.generacion = generacion.strip() if isinstance(generacion, str) else generacion
+    if experiencia is not None:
+        asistente.experiencia = experiencia
 
+    # ---- 7) Actualizar / crear AsistenteMedico ----
+    medico = AsistenteMedico.query.get(id_asistente)
+    if not medico:
+        medico = AsistenteMedico(id_asistente=id_asistente)
+        db.session.add(medico)
+
+    if tipo_sangre is not None:
+        medico.tipo_sangre = tipo_sangre
+    if alergias is not None:
+        medico.alergias = alergias
+    if medicamentos_actuales is not None:
+        medico.medicamentos_actuales = medicamentos_actuales
+    if padecimientos is not None:
+        medico.padecimientos = padecimientos
+    if contacto_emergencia_nombre is not None:
+        medico.contacto_emergencia_nombre = contacto_emergencia_nombre
+    if contacto_emergencia_telefono is not None:
+        medico.contacto_emergencia_telefono = contacto_emergencia_telefono
+
+    # ---- 8) Registro en el evento ----
+    ahora = datetime.utcnow()
     registro = Registro.query.filter_by(
         id_evento=id_evento,
         id_asistente=id_asistente
     ).first()
 
     creado_registro = False
-
     if not registro:
         registro = Registro(
             id_evento=id_evento,
@@ -948,29 +1010,26 @@ def qr_checkin():
         db.session.add(registro)
         creado_registro = True
 
-    # Marcamos asistencia lógica (RSVP vs asistencia real)
-    registro.asistencia = 'si'
+    # Marcamos asistencia lógica
+    registro.asistencia = "si"
     if registro.confirmado is None:
         registro.confirmado = True
         registro.fecha_confirmacion = ahora
 
-    # --------- 3) Marcar asistencia física (tabla ASISTENCIA) ---------
-    asistencia_obj = registro.asistencia_registro
+    # ---- 9) Asistencia física (hora_entrada en tabla asistencia) ----
+    asistencia_obj = Asistencia.query.filter_by(id_registro=registro.id_registro).first()
     created_asistencia = False
 
     if not asistencia_obj:
         asistencia_obj = Asistencia(
             id_registro=registro.id_registro,
             hora_entrada=ahora,
-            numero_mesa=None,
-            numero_asiento=None,
             codigo_gafete=f"AGFI-{id_asistente}",
             creado_en=ahora
         )
         db.session.add(asistencia_obj)
         created_asistencia = True
     else:
-        # Si ya tenía hora_entrada, no la pisamos.
         if not asistencia_obj.hora_entrada:
             asistencia_obj.hora_entrada = ahora
 
@@ -978,7 +1037,7 @@ def qr_checkin():
 
     return jsonify({
         "ok": True,
-        "message": "Asistencia registrada correctamente.",
+        "message": "Datos actualizados y asistencia registrada correctamente.",
         "detalles": {
             "id_asistente": id_asistente,
             "id_evento": id_evento,

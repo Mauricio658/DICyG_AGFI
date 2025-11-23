@@ -341,6 +341,65 @@
                 <label class="form-label">Clasificación</label>
                 <input class="form-control" id="qrRol" placeholder="ingeniero / becario / estudiante">
               </div>
+              <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <label class="form-label">Teléfono</label>
+                <input type="text" id="qrTelefono" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Carrera</label>
+                <input type="text" id="qrCarrera" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Generación</label>
+                <input type="text" id="qrGeneracion" class="form-control form-control-sm">
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-12">
+                <label class="form-label">Experiencia</label>
+                <textarea id="qrExperiencia" class="form-control form-control-sm" rows="2"></textarea>
+              </div>
+            </div>
+
+            <hr class="my-3">
+
+            <h6 class="fw-semibold">Datos médicos</h6>
+
+            <div class="row g-3 mt-1">
+              <div class="col-md-3">
+                <label class="form-label">Tipo de sangre</label>
+                <input type="text" id="qrTipoSangre" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-9">
+                <label class="form-label">Alergias</label>
+                <textarea id="qrAlergias" class="form-control form-control-sm" rows="2"></textarea>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <label class="form-label">Medicamentos actuales</label>
+                <textarea id="qrMedicamentos" class="form-control form-control-sm" rows="2"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Padecimientos</label>
+                <textarea id="qrPadecimientos" class="form-control form-control-sm" rows="2"></textarea>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <label class="form-label">Contacto de emergencia (nombre)</label>
+                <input type="text" id="qrContactoNombre" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Contacto de emergencia (teléfono)</label>
+                <input type="text" id="qrContactoTelefono" class="form-control form-control-sm">
+              </div>
+            </div>
+
             </div>
             <div class="d-flex justify-content-between align-items-center mt-3">
               <div class="small text-muted" id="qrMsg"></div>
@@ -1632,6 +1691,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const inpCorreo   = document.getElementById('qrCorreo');
   const inpEmpresa  = document.getElementById('qrEmpresa');
   const inpRol      = document.getElementById('qrRol');
+  const inpTelefono        = document.getElementById('qrTelefono');
+  const inpCarrera         = document.getElementById('qrCarrera');
+  const inpGeneracion      = document.getElementById('qrGeneracion');
+  const txtExperiencia     = document.getElementById('qrExperiencia');
+  const inpTipoSangre      = document.getElementById('qrTipoSangre');
+  const txtAlergias        = document.getElementById('qrAlergias');
+  const txtMedicamentos    = document.getElementById('qrMedicamentos');
+  const txtPadecimientos   = document.getElementById('qrPadecimientos');
+  const inpContNombre      = document.getElementById('qrContactoNombre');
+  const inpContTelefono    = document.getElementById('qrContactoTelefono');
+
 
   const msg         = document.getElementById('qrMsg');
 
@@ -1698,10 +1768,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Limpiar estado visual
-    inpNombre.value  = '';
-    inpCorreo.value  = '';
-    inpEmpresa.value = '';
-    inpRol.value     = '';
+    inpNombre.value       = '';
+    inpCorreo.value       = '';
+    inpEmpresa.value      = '';
+    inpRol.value          = '';
+    inpTelefono.value     = '';
+    inpCarrera.value      = '';
+    inpGeneracion.value   = '';
+    txtExperiencia.value  = '';
+    inpTipoSangre.value   = '';
+    txtAlergias.value     = '';
+    txtMedicamentos.value = '';
+    txtPadecimientos.value= '';
+    inpContNombre.value   = '';
+    inpContTelefono.value = '';
+
     estadoActual = { id_asistente: null, id_registro: null, codigo_qr: code, ya_checkin: false, hora_entrada: null };
 
     try {
@@ -1720,11 +1801,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const a = body.asistente || {};
       const reg = body.registro || null;
       const asis = body.asistencia || null;
+      inpNombre.value       = a.nombre || '';
+      inpCorreo.value       = a.correo || '';
+      inpEmpresa.value      = a.empresa || '';
+      inpRol.value          = a.rol || '';
 
-      inpNombre.value  = a.nombre || '';
-      inpCorreo.value  = a.correo || '';
-      inpEmpresa.value = a.empresa || '';
-      inpRol.value     = a.rol || '';
+      inpTelefono.value     = a.telefono || '';
+      inpCarrera.value      = a.carrera || '';
+      inpGeneracion.value   = a.generacion || '';
+      txtExperiencia.value  = a.experiencia || '';
+
+      inpTipoSangre.value   = a.tipo_sangre || '';
+      txtAlergias.value     = a.alergias || '';
+      txtMedicamentos.value = a.medicamentos_actuales || '';
+      txtPadecimientos.value= a.padecimientos || '';
+
+      inpContNombre.value   = a.contacto_emergencia_nombre || '';
+      inpContTelefono.value = a.contacto_emergencia_telefono || '';
+
 
       estadoActual.id_asistente = a.id_asistente;
       estadoActual.id_registro  = reg ? reg.id_registro : null;
@@ -1801,63 +1895,75 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------- 4) Guardar cambios + marcar asistencia --------
-  async function guardarYMarcar() {
-    msg.textContent = '';
-    msg.classList.remove('text-danger', 'text-success');
+async function guardarYMarcar() {
+  msg.textContent = '';
+  msg.classList.remove('text-danger', 'text-success');
 
-    const idEvento = selEvento.value;
-    if (!idEvento) {
-      msg.textContent = 'Selecciona un evento.';
-      msg.classList.add('text-danger');
-      return;
-    }
-
-    if (!estadoActual.id_asistente) {
-      msg.textContent = 'Primero busca a la persona por QR.';
-      msg.classList.add('text-danger');
-      return;
-    }
-
-    const payload = {
-      id_evento: idEvento,
-      id_asistente: estadoActual.id_asistente,
-      nombre: inpNombre.value.trim() || null,
-      correo: inpCorreo.value.trim() || null,
-      empresa: inpEmpresa.value.trim() || null,
-      rol: inpRol.value.trim() || null   // Debe ser ingeniero / becario / estudiante
-    };
-
-    try {
-      const res = await fetch('http://localhost:5000/admin/qr_checkin', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok || !body.ok) {
-        msg.textContent = body.message || 'Error al guardar y registrar asistencia.';
-        msg.classList.add('text-danger');
-        return;
-      }
-
-      const det = body.detalles || {};
-      estadoActual.hora_entrada = det.hora_entrada;
-      estadoActual.ya_checkin   = true;
-
-      msg.textContent = 'Datos actualizados y asistencia registrada correctamente.';
-      msg.classList.add('text-success');
-
-    } catch (err) {
-      console.error('Error en guardarYMarcar:', err);
-      msg.textContent = 'Error de comunicación con el servidor.';
-      msg.classList.add('text-danger');
-    }
+  const idEvento = selEvento.value;
+  if (!idEvento) {
+    msg.textContent = 'Selecciona un evento.';
+    msg.classList.add('text-danger');
+    return;
   }
+
+  if (!estadoActual.id_asistente) {
+    msg.textContent = 'Primero busca a la persona por QR.';
+    msg.classList.add('text-danger');
+    return;
+  }
+
+  const payload = {
+    id_evento: idEvento,
+    id_asistente: estadoActual.id_asistente,
+    nombre:   inpNombre.value.trim()   || null,
+    correo:   inpCorreo.value.trim()   || null,
+    empresa:  inpEmpresa.value.trim()  || null,
+    rol:      inpRol.value.trim()      || null,
+
+    telefono:        inpTelefono.value.trim()        || null,
+    carrera:         inpCarrera.value.trim()         || null,
+    generacion:      inpGeneracion.value.trim()      || null,
+    experiencia:     txtExperiencia.value.trim()     || null,
+
+    tipo_sangre:                  inpTipoSangre.value.trim()        || null,
+    alergias:                     txtAlergias.value.trim()          || null,
+    medicamentos_actuales:        txtMedicamentos.value.trim()      || null,
+    padecimientos:                txtPadecimientos.value.trim()     || null,
+    contacto_emergencia_nombre:   inpContNombre.value.trim()        || null,
+    contacto_emergencia_telefono: inpContTelefono.value.trim()      || null
+  };
+
+  try {
+    const res = await fetch('http://localhost:5000/admin/qr_checkin', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok || !body.ok) {
+      msg.textContent = body.message || 'Error al guardar y registrar asistencia.';
+      msg.classList.add('text-danger');
+      return;
+    }
+
+    const det = body.detalles || {};
+    estadoActual.hora_entrada = det.hora_entrada;
+    estadoActual.ya_checkin   = true;
+
+    msg.textContent = 'Datos (incluyendo médicos) guardados y asistencia registrada correctamente.';
+    msg.classList.add('text-success');
+
+  } catch (err) {
+    console.error('Error en guardarYMarcar:', err);
+    msg.textContent = 'Error de comunicación con el servidor.';
+    msg.classList.add('text-danger');
+  }
+}
 
   // Listeners
   btnBuscar.addEventListener('click', (e) => {
