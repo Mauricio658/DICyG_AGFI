@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
-
-from models import db, Persona, Asistente, AsistenteMedico, Rol
 from auth import registrar_log  # reutilizamos tu logger de auth
+from models import db, Persona, Asistente, AsistenteMedico, Rol, Registro, Evento
 
 
 perfil_bp = Blueprint("perfil", __name__, url_prefix="/perfil")
@@ -197,7 +196,6 @@ def actualizar_medico():
 
 # =====================================
 # 4) Obtener solo la parte médica (opcional)
-#    Útil si luego quieres separar requests
 # =====================================
 @perfil_bp.route("/medico", methods=["GET"])
 @jwt_required()
@@ -228,3 +226,124 @@ def obtener_medico():
     }
 
     return jsonify({"ok": True, "medico": data}), 200
+
+from datetime import datetime
+
+@perfil_bp.route("/eventos_proximos", methods=["GET"])
+@jwt_required()
+def eventos_proximos():
+    """
+    Devuelve los eventos futuros del asistente logueado
+    (registros donde fecha_inicio >= ahora).
+    """
+    identidad = get_jwt_identity()
+    id_persona = identidad.get("id_persona")
+
+    persona = Persona.query.get(id_persona)
+    if not persona or not persona.asistente:
+        return jsonify({"ok": False, "message": "Asistente no encontrado"}), 404
+
+    asistente = persona.asistente
+    ahora = datetime.utcnow()
+
+    registros = (
+        Registro.query
+        .join(Evento, Registro.id_evento == Evento.id_evento)
+        .filter(
+            Registro.id_asistente == asistente.id_asistente,
+            Evento.fecha_inicio >= ahora
+        )
+        .order_by(Evento.fecha_inicio.asc())
+        .all()
+    )
+
+    eventos_data = []
+    for reg in registros:
+        ev = reg.evento
+        # Lugar "bonito"
+        lugar = ev.ciudad or ev.sede or ev.estado or ev.pais
+
+        eventos_data.append({
+            "id_registro": int(reg.id_registro),
+            "id_evento": int(ev.id_evento),
+            "codigo_evento": ev.codigo,
+            "nombre_evento": ev.nombre,
+            "fecha_inicio": ev.fecha_inicio.isoformat(),
+            "sede": ev.sede,
+            "ciudad": ev.ciudad,
+            "estado": ev.estado,
+            "pais": ev.pais,
+            "lugar": lugar,
+            "asistencia": reg.asistencia,  # 'si','no','tal_vez','desconocido'
+            "confirmado": reg.confirmado,
+            "fecha_confirmacion": reg.fecha_confirmacion.isoformat() if reg.fecha_confirmacion else None,
+            "invitados": reg.invitados,
+            "comentarios": reg.comentarios,
+        })
+
+    return jsonify({"ok": True, "eventos": eventos_data}), 200
+
+@perfil_bp.route("/eventos/<int:id_registro>/rsvp", methods=["PUT"])
+@jwt_required()
+def actualizar_rsvp(id_registro):
+    """
+    Actualiza la asistencia (RSVP) del registro indicado,
+    solo si pertenece al asistente logueado.
+    """
+    identidad = get_jwt_identity()
+    id_persona = identidad.get("id_persona")
+
+    persona = Persona.query.get(id_persona)
+    if not persona or not persona.asistente:
+        return jsonify({"ok": False, "message": "Asistente no encontrado"}), 404
+
+    asistente = persona.asistente
+
+    registro = Registro.query.get(id_registro)
+    if not registro:
+        return jsonify({"ok": False, "message": "Registro no encontrado"}), 404
+
+    if registro.id_asistente != asistente.id_asistente:
+        # Intentando modificar un registro que no es suyo
+        return jsonify({"ok": False, "message": "No tienes permiso para modificar este registro"}), 403
+
+    data = request.get_json() or {}
+    nueva_asistencia = data.get("asistencia")
+    comentarios = data.get("comentarios")
+
+    if nueva_asistencia not in ("si", "no", "tal_vez", "desconocido"):
+        return jsonify({"ok": False, "message": "Valor de asistencia inválido"}), 400
+
+    registro.asistencia = nueva_asistencia
+    # Confirmado = True cuando responde algo distinto de "desconocido"
+    registro.confirmado = True if nueva_asistencia in ("si", "no", "tal_vez") else None
+    registro.fecha_confirmacion = datetime.utcnow()
+    if comentarios is not None:
+        registro.comentarios = comentarios.strip() or None
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "ok": False,
+            "message": "Error al actualizar asistencia",
+            "error": str(e)
+        }), 500
+
+    # Log de acción
+    registrar_log(
+        id_asistente=asistente.id_asistente,
+        id_registro=registro.id_registro,
+        accion="Actualización de RSVP",
+        descripcion=f"Usuario {persona.correo} marcó asistencia='{nueva_asistencia}' para el evento {registro.evento.codigo}.",
+        actor=persona.correo
+    )
+
+    return jsonify({
+        "ok": True,
+        "message": "Asistencia actualizada correctamente.",
+        "asistencia": registro.asistencia,
+        "confirmado": registro.confirmado,
+        "fecha_confirmacion": registro.fecha_confirmacion.isoformat() if registro.fecha_confirmacion else None
+    }), 200

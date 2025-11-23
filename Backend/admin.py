@@ -319,24 +319,59 @@ def crear_evento():
     except Exception:
         return jsonify({"ok": False, "message": "Fecha inválida."}), 400
 
-    # Código único simple (puedes cambiarlo luego a algo más fancy)
+    # Código único simple
     codigo = f"EV-{int(datetime.utcnow().timestamp())}"
 
-    evento = Evento(
-        codigo=codigo,
-        nombre=nombre,
-        fecha_inicio=fecha_dt,
-        sede=lugar,
-        direccion=direccion,
-        ciudad=ciudad,
-        estado=estado,
-        pais=pais,
-        notas=notas,
-        creado_en=datetime.utcnow()
-    )
+    try:
+        ahora = datetime.utcnow()
 
-    db.session.add(evento)
-    db.session.commit()
+        # 1) Crear evento
+        evento = Evento(
+            codigo=codigo,
+            nombre=nombre,
+            fecha_inicio=fecha_dt,
+            sede=lugar,
+            direccion=direccion,
+            ciudad=ciudad,
+            estado=estado,
+            pais=pais,
+            notas=notas,
+            creado_en=ahora
+        )
+        db.session.add(evento)
+        db.session.flush()  # ya tenemos evento.id_evento
+
+        # 2) Obtener todos los asistentes formales
+        asistentes = Asistente.query.all()
+
+        registros_nuevos = []
+        for a in asistentes:
+            reg = Registro(
+                id_evento=evento.id_evento,
+                id_asistente=a.id_asistente,
+                asistencia="desconocido",
+                invitados=0,
+                confirmado=None,
+                fecha_confirmacion=None,
+                comentarios=None,
+                creado_en=ahora
+            )
+            registros_nuevos.append(reg)
+
+        if registros_nuevos:
+            db.session.add_all(registros_nuevos)
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        # Muy útil para depurar mientras tanto
+        print("Error al crear evento:", e)
+        return jsonify({
+            "ok": False,
+            "message": "Error al crear evento",
+            "error": str(e)
+        }), 500
 
     return jsonify({
         "ok": True,
@@ -352,7 +387,8 @@ def crear_evento():
             "estado": evento.estado,
             "pais": evento.pais,
             "notas": evento.notas,
-        }
+        },
+        "registros_creados": len(registros_nuevos)
     }), 201
 
 # =====================================

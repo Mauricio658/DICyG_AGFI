@@ -169,30 +169,6 @@
                   </tr>
                 </thead>
                 <tbody id="tablaProximos">
-                  <!-- Ejemplo estático -->
-                  <tr>
-                    <td>Desayuno Asamblea Ordinaria</td>
-                    <td>15/11/2025</td>
-                    <td>CDMX</td>
-                    <td>
-                      <div class="btn-group btn-group-sm" role="group">
-                        <button class="btn btn-outline-success">Confirmo</button>
-                        <button class="btn btn-outline-danger">No puedo</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Networking AGFI Jóvenes</td>
-                    <td>02/12/2025</td>
-                    <td>Guadalajara</td>
-                    <td>
-                      <div class="btn-group btn-group-sm" role="group">
-                        <button class="btn btn-outline-success">Confirmo</button>
-                        <button class="btn btn-outline-danger">No puedo</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <!-- Aquí vas a renderizar con JS los eventos reales del usuario -->
                 </tbody>
               </table>
             </div>
@@ -508,9 +484,162 @@
     });
   }
 
+  // Cargar próximos eventos y manejar confirmaciones
+    function formatFechaCorta(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('es-MX', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      });
+    } catch (e) {
+      return iso;
+    }
+  }
+
+  async function cargarEventosProximos() {
+    const tbody = document.getElementById('tablaProximos');
+    if (!tbody) return;
+
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" class="text-center text-muted small">
+          Cargando eventos...
+        </td>
+      </tr>
+    `;
+
+    try {
+      const res = await fetch(`${API_BASE}/perfil/eventos_proximos`, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      console.log('DEBUG /perfil/eventos_proximos =>', res.status, data);
+
+      if (!res.ok || !data.ok) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center text-danger small">
+              Error al cargar tus eventos.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const eventos = data.eventos || [];
+
+      if (!eventos.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center text-muted small">
+              No tienes eventos próximos registrados.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = '';
+
+      eventos.forEach(ev => {
+        const tr = document.createElement('tr');
+        tr.dataset.idRegistro = ev.id_registro;
+
+        const lugar = ev.lugar || [ev.ciudad, ev.estado, ev.pais].filter(Boolean).join(', ');
+
+        tr.innerHTML = `
+          <td>${ev.nombre_evento}</td>
+          <td>${formatFechaCorta(ev.fecha_inicio)}</td>
+          <td>${lugar || '—'}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button"
+                class="btn ${ev.asistencia === 'si' ? 'btn-success' : 'btn-outline-success'} btn-confirmo">
+                Confirmo
+              </button>
+              <button type="button"
+                class="btn ${ev.asistencia === 'no' ? 'btn-danger' : 'btn-outline-danger'} btn-no-puedo">
+                No puedo
+              </button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Error llamando a /perfil/eventos_proximos', err);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-center text-danger small">
+            Error de conexión al cargar tus eventos.
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  async function actualizarRsvp(idRegistro, asistencia, row) {
+    try {
+      const res = await fetch(`${API_BASE}/perfil/eventos/${idRegistro}/rsvp`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({ asistencia })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      console.log('DEBUG PUT /perfil/eventos/:id/rsvp =>', res.status, data);
+
+      if (!res.ok || !data.ok) {
+        alert(data.message || 'Error al actualizar tu asistencia.');
+        return;
+      }
+
+      // Actualizar estilo de los botones en esa fila
+      const btnConfirmo = row.querySelector('.btn-confirmo');
+      const btnNoPuedo = row.querySelector('.btn-no-puedo');
+
+      if (btnConfirmo && btnNoPuedo) {
+        if (asistencia === 'si') {
+          btnConfirmo.classList.remove('btn-outline-success');
+          btnConfirmo.classList.add('btn-success');
+
+          btnNoPuedo.classList.remove('btn-danger');
+          btnNoPuedo.classList.add('btn-outline-danger');
+        } else if (asistencia === 'no') {
+          btnNoPuedo.classList.remove('btn-outline-danger');
+          btnNoPuedo.classList.add('btn-danger');
+
+          btnConfirmo.classList.remove('btn-success');
+          btnConfirmo.classList.add('btn-outline-success');
+        }
+      }
+
+      // Actualizamos también la "última actualización"
+      document.getElementById('ultimaActualizacion').textContent =
+        new Date().toLocaleString('es-MX', {
+          dateStyle: 'short',
+          timeStyle: 'short'
+        });
+
+      alert('Tu respuesta de asistencia se guardó correctamente.');
+    } catch (err) {
+      console.error('Error actualizando RSVP', err);
+      alert('Error de conexión al guardar tu asistencia.');
+    }
+  }
+
+
   document.addEventListener('DOMContentLoaded', () => {
     // Cargar info inicial
     cargarPerfil();
+    cargarEventosProximos();
 
     // Handlers de guardado
     const formDatos = document.getElementById('form-datos-personales');
@@ -524,7 +653,27 @@
     }
 
     inicializarBuzon();
+
+    // Delegación de eventos para los botones Confirmo / No puedo
+    const tbodyProximos = document.getElementById('tablaProximos');
+    if (tbodyProximos) {
+      tbodyProximos.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+
+        const row = btn.closest('tr');
+        const idRegistro = row && row.dataset.idRegistro;
+        if (!idRegistro) return;
+
+        if (btn.classList.contains('btn-confirmo')) {
+          actualizarRsvp(idRegistro, 'si', row);
+        } else if (btn.classList.contains('btn-no-puedo')) {
+          actualizarRsvp(idRegistro, 'no', row);
+        }
+      });
+    }
   });
+
 })();
 </script>
 
