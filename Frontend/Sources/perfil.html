@@ -295,522 +295,285 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script>
-(function () {
-  const API_BASE = 'http://localhost:5000'; // igual que en index.html
-  const token = localStorage.getItem('agfi_token');
+<script>
+// ================================
+// Configuración inicial
+// ================================
+const API_BASE = "http://localhost:5000";
+const token = localStorage.getItem("agfi_token");
+const authHeaders = {
+  "Authorization": "Bearer " + token,
+  "Content-Type": "application/json"
+};
 
-  // Si no hay token, fuera de aquí
-  if (!token) {
-    window.location.href = 'index.html';
+// Redirect si no hay sesión
+if (!token) {
+  window.location.href = "index.html";
+}
+
+// ================================
+// Utilidades
+// ================================
+function formatFecha(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("es-MX", {
+    dateStyle: "short",
+    timeStyle: "short"
+  });
+}
+
+function formatFechaCorta(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("es-MX", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+}
+
+// ================================
+// PERFIL
+// ================================
+async function cargarPerfil() {
+  try {
+    const res = await fetch(`${API_BASE}/perfil/me`, {
+      method: "GET",
+      headers: authHeaders
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) return;
+
+    const p = data.perfil;
+    const asist = p.asistente || {};
+    const med = p.medico || {};
+
+    document.getElementById("inpNombre").value = p.nombre_completo || "";
+    document.getElementById("inpCorreo").value = p.correo || "";
+    document.getElementById("inpTelefono").value = p.telefono || "";
+    document.getElementById("inpEmpresa").value = p.empresa || "";
+    document.getElementById("inpPuesto").value = p.puesto || "";
+    document.getElementById("inpExperiencia").value = asist.experiencia || "";
+
+    document.getElementById("inpSangre").value = med.tipo_sangre || "";
+    document.getElementById("inpAlergias").value = med.alergias || "";
+    document.getElementById("inpPadecimientos").value = med.padecimientos || "";
+    document.getElementById("inpMedicamentos").value = med.medicamentos_actuales || "";
+    document.getElementById("inpContactoEmergencia").value = med.contacto_emergencia_nombre || "";
+    document.getElementById("inpTelEmergencia").value = med.contacto_emergencia_telefono || "";
+
+    document.getElementById("ultimaActualizacion").textContent =
+      formatFecha(p.ultima_actualizacion);
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function guardarDatosPersonales(e) {
+  e.preventDefault();
+  const payload = {
+    nombre_completo: inpNombre.value.trim(),
+    correo: inpCorreo.value.trim(),
+    telefono: inpTelefono.value.trim(),
+    empresa: inpEmpresa.value.trim(),
+    puesto: inpPuesto.value.trim(),
+    experiencia: inpExperiencia.value.trim()
+  };
+
+  const res = await fetch(`${API_BASE}/perfil/me`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) return alert("Error al actualizar.");
+
+  document.getElementById("ultimaActualizacion").textContent =
+    new Date().toLocaleString("es-MX", {
+      dateStyle: "short",
+      timeStyle: "short"
+    });
+
+  alert("Datos guardados.");
+}
+
+async function guardarDatosMedicos(e) {
+  e.preventDefault();
+
+  const payload = {
+    tipo_sangre: inpSangre.value.trim(),
+    alergias: inpAlergias.value.trim(),
+    padecimientos: inpPadecimientos.value.trim(),
+    medicamentos_actuales: inpMedicamentos.value.trim(),
+    contacto_emergencia_nombre: inpContactoEmergencia.value.trim(),
+    contacto_emergencia_telefono: inpTelEmergencia.value.trim()
+  };
+
+  const res = await fetch(`${API_BASE}/perfil/medico`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) return alert("Error.");
+
+  document.getElementById("ultimaActualizacion").textContent =
+    new Date().toLocaleString("es-MX", {
+      dateStyle: "short",
+      timeStyle: "short"
+    });
+
+  alert("Sección médica actualizada.");
+}
+
+// ================================
+// BUZÓN (ANTI-DOBLE ENVÍO)
+// ================================
+let enviandoComentario = false;
+
+function inicializarBuzon() {
+  const formBuzon = document.getElementById("form-buzon");
+  const btnSubmit = formBuzon.querySelector("button[type=submit]");
+
+  formBuzon.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    if (enviandoComentario) return;
+
+    const payload = {
+      asunto: inpAsunto.value.trim(),
+      mensaje: inpMensajeBuzon.value.trim(),
+      evento_relacionado: inpEventoRelacionado.value || null
+    };
+
+    if (!payload.asunto || !payload.mensaje)
+      return alert("Llena asunto y mensaje.");
+
+    try {
+      enviandoComentario = true;
+      btnSubmit.disabled = true;
+
+      const res = await fetch(`${API_BASE}/perfil/buzon`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok)
+        return alert("Error al enviar.");
+
+      alert("Enviado correctamente.");
+      formBuzon.reset();
+
+    } finally {
+      enviandoComentario = false;
+      btnSubmit.disabled = false;
+    }
+  });
+}
+
+// ================================
+// EVENTOS (Confirmar asistencia)
+// ================================
+async function cargarEventosProximos() {
+  const tbody = document.getElementById("tablaProximos");
+  tbody.innerHTML = "<tr><td colspan='4'>Cargando...</td></tr>";
+
+  const res = await fetch(`${API_BASE}/perfil/eventos_proximos`, {
+    method: "GET",
+    headers: authHeaders
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data.ok) {
+    tbody.innerHTML = "<tr><td colspan='4'>Error.</td></tr>";
     return;
   }
 
-  const authHeaders = {
-    'Authorization': 'Bearer ' + token,
-    'Content-Type': 'application/json'
-  };
+  tbody.innerHTML = "";
+  data.eventos.forEach(ev => {
+    const tr = document.createElement("tr");
+    tr.dataset.idRegistro = ev.id_registro;
 
-  function formatFecha(iso) {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleString('es-MX', {
-        dateStyle: 'short',
-        timeStyle: 'short'
-      });
-    } catch (e) {
-      return iso;
-    }
-  }
-
-  async function cargarPerfil() {
-    try {
-      const res = await fetch(`${API_BASE}/perfil/me`, {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + token
-        }
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log('DEBUG /perfil/me =>', res.status, data);
-
-      if (res.status === 401) {
-        localStorage.clear();
-        window.location.href = 'index.html';
-        return;
-      }
-
-      if (!res.ok || !data.ok || !data.perfil) {
-        console.error('Error obteniendo perfil', data);
-        return;
-      }
-
-      const perfil = data.perfil;
-      const asistente = perfil.asistente || {};
-      const rol = perfil.rol || {};
-      const medico = perfil.medico || {};
-
-      // DATOS PERSONALES :contentReference[oaicite:3]{index=3}
-      document.getElementById('inpNombre').value   = perfil.nombre_completo || '';
-      document.getElementById('inpCorreo').value   = perfil.correo || '';
-      document.getElementById('inpTelefono').value = perfil.telefono || '';
-      document.getElementById('inpEmpresa').value  = perfil.empresa || '';
-      document.getElementById('inpPuesto').value   = perfil.puesto || '';
-      document.getElementById('inpExperiencia').value = asistente.experiencia || '';
-
-      // MÉDICOS
-      document.getElementById('inpSangre').value             = medico.tipo_sangre || '';
-      document.getElementById('inpAlergias').value           = medico.alergias || '';
-      document.getElementById('inpPadecimientos').value      = medico.padecimientos || '';
-      document.getElementById('inpMedicamentos').value       = medico.medicamentos_actuales || '';
-      document.getElementById('inpContactoEmergencia').value = medico.contacto_emergencia_nombre || '';
-      document.getElementById('inpTelEmergencia').value      = medico.contacto_emergencia_telefono || '';
-
-      // Timestamp
-      document.getElementById('ultimaActualizacion').textContent =
-        formatFecha(perfil.ultima_actualizacion);
-    } catch (err) {
-      console.error('Error llamando a /perfil/me', err);
-    }
-  }
-
-  async function guardarDatosPersonales(e) {
-    e.preventDefault();
-
-    const payload = {
-      nombre_completo: document.getElementById('inpNombre').value.trim(),
-      correo:          document.getElementById('inpCorreo').value.trim(),
-      telefono:        document.getElementById('inpTelefono').value.trim(),
-      empresa:         document.getElementById('inpEmpresa').value.trim(),
-      puesto:          document.getElementById('inpPuesto').value.trim(),
-      experiencia:     document.getElementById('inpExperiencia').value.trim()
-    };
-
-
-    try {
-      const res = await fetch(`${API_BASE}/perfil/me`, {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log('DEBUG PUT /perfil/me =>', res.status, data);
-
-      if (!res.ok || !data.ok) {
-        alert(data.message || 'Error al guardar tus datos personales.');
-        return;
-      }
-
-      // Actualizar timestamp a "ahorita"
-      document.getElementById('ultimaActualizacion').textContent =
-        new Date().toLocaleString('es-MX', {
-          dateStyle: 'short',
-          timeStyle: 'short'
-        });
-
-      alert('Datos personales actualizados correctamente.');
-    } catch (err) {
-      console.error('Error guardando datos personales', err);
-      alert('Error de conexión al guardar tus datos.');
-    }
-  }
-
-  async function guardarDatosMedicos(e) {
-    e.preventDefault();
-
-    const payload = {
-      tipo_sangre:                document.getElementById('inpSangre').value.trim(),
-      alergias:                   document.getElementById('inpAlergias').value.trim(),
-      padecimientos:              document.getElementById('inpPadecimientos').value.trim(),
-      medicamentos_actuales:      document.getElementById('inpMedicamentos').value.trim(),
-      contacto_emergencia_nombre: document.getElementById('inpContactoEmergencia').value.trim(),
-      contacto_emergencia_telefono: document.getElementById('inpTelEmergencia').value.trim()
-    };
-
-    try {
-      const res = await fetch(`${API_BASE}/perfil/medico`, {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log('DEBUG PUT /perfil/medico =>', res.status, data);
-
-      if (!res.ok || !data.ok) {
-        alert(data.message || 'Error al guardar tus consideraciones médicas.');
-        return;
-      }
-
-      // Actualizar timestamp también
-      document.getElementById('ultimaActualizacion').textContent =
-        new Date().toLocaleString('es-MX', {
-          dateStyle: 'short',
-          timeStyle: 'short'
-        });
-
-      alert('Consideraciones médicas actualizadas correctamente.');
-    } catch (err) {
-      console.error('Error guardando datos médicos', err);
-      alert('Error de conexión al guardar datos médicos.');
-    }
-  }
-
-    function formatFechaCorta(iso) {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleDateString('es-MX', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-    } catch (e) {
-      return iso;
-    }
-  }
-
-  async function cargarEventosParaBuzon() {
-    const select = document.getElementById('inpEventoRelacionado');
-    if (!select) return;
-
-    // Preservamos la primera opción (placeholder) y, si existe, "Otro / General"
-    const placeholder = select.querySelector('option[value=""]');
-    const otroGeneral = Array.from(select.options).find(
-      opt => opt.value === 'Otro / General'
-    );
-
-    // Limpiamos todo
-    select.innerHTML = '';
-    if (placeholder) select.appendChild(placeholder);
-    if (otroGeneral) select.appendChild(otroGeneral);
-
-    try {
-      const res = await fetch(`${API_BASE}/perfil/eventos_buzon`, {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + token
-        }
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log('DEBUG /perfil/eventos_buzon =>', res.status, data);
-
-      if (!res.ok || !data.ok) {
-        // Si falla, dejamos solo las opciones básicas
-        return;
-      }
-
-      const eventos = data.eventos || [];
-      eventos.forEach(ev => {
-        const fechaFmt = formatFechaCorta(ev.fecha_inicio);
-        const label = `${ev.nombre} (${fechaFmt})`;
-
-        const opt = document.createElement('option');
-        // Guardamos el TEXTO que queremos que se guarde en la BD como evento_relacionado
-        opt.value = label;
-        opt.textContent = label;
-        // Insertamos antes de "Otro / General", si existe
-        if (otroGeneral) {
-          select.insertBefore(opt, otroGeneral);
-        } else {
-          select.appendChild(opt);
-        }
-      });
-
-    } catch (err) {
-      console.error('Error cargando eventos para buzón', err);
-      // Si hay error de red, simplemente se quedan las opciones básicas
-    }
-  }
-
-  function inicializarBuzon() {
-    const formBuzon = document.getElementById('form-buzon');
-    if (!formBuzon) return;
-
-    formBuzon.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const asunto  = document.getElementById('inpAsunto').value.trim();
-      const mensaje = document.getElementById('inpMensajeBuzon').value.trim();
-      const eventoRelacionado = document.getElementById('inpEventoRelacionado')
-        ? document.getElementById('inpEventoRelacionado').value.trim()
-        : "";
-
-      if (!asunto || !mensaje) {
-        alert('Por favor llena asunto y mensaje.');
-        return;
-      }
-
-      const payload = {
-        asunto,
-        mensaje,
-        evento_relacionado: eventoRelacionado || null
-      };
-
-      try {
-        const res = await fetch(`${API_BASE}/perfil/buzon`, {
-          method: 'POST',
-          headers: authHeaders,
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json().catch(() => ({}));
-        console.log('DEBUG POST /perfil/buzon =>', res.status, data);
-
-        if (!res.ok || !data.ok) {
-          alert(data.message || 'Error al enviar tu comentario.');
-          return;
-        }
-
-        alert(data.message || 'Tu comentario se envió de forma anónima. ¡Gracias!');
-        formBuzon.reset();
-      } catch (err) {
-        console.error('Error enviando comentario de buzón', err);
-        alert('Error de conexión al enviar tu comentario.');
-      }
-    });
-  }
-
-
-  // Cargar próximos eventos y manejar confirmaciones
-    function formatFechaCorta(iso) {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleString('es-MX', {
-        dateStyle: 'short',
-        timeStyle: 'short'
-      });
-    } catch (e) {
-      return iso;
-    }
-  }
-
-  async function cargarEventosProximos() {
-    const tbody = document.getElementById('tablaProximos');
-    if (!tbody) return;
-
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="4" class="text-center text-muted small">
-          Cargando eventos...
-        </td>
-      </tr>
+    tr.innerHTML = `
+      <td>${ev.nombre_evento}</td>
+      <td>${formatFechaCorta(ev.fecha_inicio)}</td>
+      <td>${ev.lugar || "—"}</td>
+      <td>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-confirmo ${ev.asistencia === "si" ? "btn-success" : "btn-outline-success"}">Confirmo</button>
+          <button class="btn btn-no-puedo ${ev.asistencia === "no" ? "btn-danger" : "btn-outline-danger"}">No puedo</button>
+        </div>
+      </td>
     `;
-
-    try {
-      const res = await fetch(`${API_BASE}/perfil/eventos_proximos`, {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + token
-        }
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log('DEBUG /perfil/eventos_proximos =>', res.status, data);
-
-      if (!res.ok || !data.ok) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="4" class="text-center text-danger small">
-              Error al cargar tus eventos.
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      const eventos = data.eventos || [];
-
-      if (!eventos.length) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="4" class="text-center text-muted small">
-              No tienes eventos próximos registrados.
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      tbody.innerHTML = '';
-
-      eventos.forEach(ev => {
-        const tr = document.createElement('tr');
-        tr.dataset.idRegistro = ev.id_registro;
-
-        const lugar = ev.lugar || [ev.ciudad, ev.estado, ev.pais].filter(Boolean).join(', ');
-
-        tr.innerHTML = `
-          <td>${ev.nombre_evento}</td>
-          <td>${formatFechaCorta(ev.fecha_inicio)}</td>
-          <td>${lugar || '—'}</td>
-          <td>
-            <div class="btn-group btn-group-sm" role="group">
-              <button type="button"
-                class="btn ${ev.asistencia === 'si' ? 'btn-success' : 'btn-outline-success'} btn-confirmo">
-                Confirmo
-              </button>
-              <button type="button"
-                class="btn ${ev.asistencia === 'no' ? 'btn-danger' : 'btn-outline-danger'} btn-no-puedo">
-                No puedo
-              </button>
-            </div>
-          </td>
-        `;
-
-        tbody.appendChild(tr);
-      });
-    } catch (err) {
-      console.error('Error llamando a /perfil/eventos_proximos', err);
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="4" class="text-center text-danger small">
-            Error de conexión al cargar tus eventos.
-          </td>
-        </tr>
-      `;
-    }
-  }
-
-  async function actualizarRsvp(idRegistro, asistencia, row) {
-    try {
-      const res = await fetch(`${API_BASE}/perfil/eventos/${idRegistro}/rsvp`, {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify({ asistencia })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log('DEBUG PUT /perfil/eventos/:id/rsvp =>', res.status, data);
-
-      if (!res.ok || !data.ok) {
-        alert(data.message || 'Error al actualizar tu asistencia.');
-        return;
-      }
-
-      // Actualizar estilo de los botones en esa fila
-      const btnConfirmo = row.querySelector('.btn-confirmo');
-      const btnNoPuedo = row.querySelector('.btn-no-puedo');
-
-      if (btnConfirmo && btnNoPuedo) {
-        if (asistencia === 'si') {
-          btnConfirmo.classList.remove('btn-outline-success');
-          btnConfirmo.classList.add('btn-success');
-
-          btnNoPuedo.classList.remove('btn-danger');
-          btnNoPuedo.classList.add('btn-outline-danger');
-        } else if (asistencia === 'no') {
-          btnNoPuedo.classList.remove('btn-outline-danger');
-          btnNoPuedo.classList.add('btn-danger');
-
-          btnConfirmo.classList.remove('btn-success');
-          btnConfirmo.classList.add('btn-outline-success');
-        }
-      }
-
-      // Actualizamos también la "última actualización"
-      document.getElementById('ultimaActualizacion').textContent =
-        new Date().toLocaleString('es-MX', {
-          dateStyle: 'short',
-          timeStyle: 'short'
-        });
-
-      alert('Tu respuesta de asistencia se guardó correctamente.');
-    } catch (err) {
-      console.error('Error actualizando RSVP', err);
-      alert('Error de conexión al guardar tu asistencia.');
-    }
-  }
-
-
-  document.addEventListener('DOMContentLoaded', () => {
-    // Cargar info inicial
-    cargarPerfil();
-    cargarEventosProximos();
-    inicializarBuzon();
-    // Handlers de guardado
-    const formDatos = document.getElementById('form-datos-personales');
-    const formMedico = document.getElementById('form-medico');
-
-    if (formDatos) {
-      formDatos.addEventListener('submit', guardarDatosPersonales);
-    }
-    if (formMedico) {
-      formMedico.addEventListener('submit', guardarDatosMedicos);
-    }
-
-    inicializarBuzon();
-
-    // Delegación de eventos para los botones Confirmo / No puedo
-    const tbodyProximos = document.getElementById('tablaProximos');
-    if (tbodyProximos) {
-      tbodyProximos.addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-
-        const row = btn.closest('tr');
-        const idRegistro = row && row.dataset.idRegistro;
-        if (!idRegistro) return;
-
-        if (btn.classList.contains('btn-confirmo')) {
-          actualizarRsvp(idRegistro, 'si', row);
-        } else if (btn.classList.contains('btn-no-puedo')) {
-          actualizarRsvp(idRegistro, 'no', row);
-        }
-      });
-    }
+    tbody.appendChild(tr);
   });
 
-})();
-</script>
+  tbody.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
+    const row = btn.closest("tr");
+    const id = row.dataset.idRegistro;
+
+    const asistencia = btn.classList.contains("btn-confirmo") ? "si" : "no";
+
+    const res = await fetch(`${API_BASE}/perfil/eventos/${id}/rsvp`, {
+      method: "PUT",
+      headers: authHeaders,
+      body: JSON.stringify({ asistencia })
+    });
+
+    if (res.ok) {
+      cargarEventosProximos();
+      alert("Asistencia actualizada.");
+    }
+  });
+}
+
+// ================================
+// LOGOUT
+// ================================
+function inicializarLogout() {
   const logoutBtn = document.getElementById("logoutBtn");
-  const logoutModalEl = document.getElementById("logoutModal");
-  const confirmLogoutBtn = document.getElementById("confirmLogoutBtn");
+  const confirm = document.getElementById("confirmLogoutBtn");
+  const modal = new bootstrap.Modal(document.getElementById("logoutModal"));
 
-  if (!logoutBtn || !logoutModalEl || !confirmLogoutBtn) return;
-
-  // Instancia del modal de Bootstrap
-  const logoutModal = new bootstrap.Modal(logoutModalEl);
-
-  // Al hacer clic en "Cerrar sesión" del sidebar -> mostrar modal
-  logoutBtn.addEventListener("click", () => {
-    logoutModal.show();
-  });
-
-  // Al confirmar en el modal
-  confirmLogoutBtn.addEventListener("click", async () => {
-    const token = localStorage.getItem("agfi_token");
-
-    try {
-      await fetch("http://localhost:5000/auth/logout", {
-        method: "POST",
-        headers: {
-          "Authorization": token ? "Bearer " + token : "",
-          "Content-Type": "application/json"
-        }
-      });
-    } catch (err) {
-      console.error("Error llamando a /auth/logout:", err);
-    }
-
-    // Borrar sesión en el cliente
-    localStorage.removeItem("agfi_token");
-    localStorage.removeItem("agfi_role");
-    localStorage.removeItem("agfi_user");
-
-    // Cerrar el modal por si acaso y redirigir
-    logoutModal.hide();
+  logoutBtn.onclick = () => modal.show();
+  confirm.onclick = async () => {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token }
+    });
+    localStorage.clear();
     window.location.href = "index.html";
-  });
+  };
+}
+
+// ================================
+// ARRANQUE GENERAL
+// ================================
+document.addEventListener("DOMContentLoaded", () => {
+  cargarPerfil();
+  cargarEventosProximos();
+  inicializarBuzon();
+  inicializarLogout();
+
+  document.getElementById("form-datos-personales")
+    .addEventListener("submit", guardarDatosPersonales);
+
+  document.getElementById("form-medico")
+    .addEventListener("submit", guardarDatosMedicos);
 });
 </script>
+
+
 </body>
 </html>
