@@ -10,7 +10,9 @@ from models import (
     AsistenteMedico,
     Evento,
     Registro,
-    BuzonComentario
+    BuzonComentario,
+    Asistencia,
+
 )
 
 
@@ -20,7 +22,9 @@ from io import BytesIO
 from flask import send_file, current_app
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
-
+import csv             
+import io                     
+import os    
 
 # =====================================
 # 1) Verificar token y rol (admin/staff)
@@ -473,4 +477,269 @@ def listar_buzon():
     return jsonify({
         "ok": True,
         "comentarios": data
+    }), 200
+
+# =====================================
+# 9) Pase de lista por evento (JSON)
+# =====================================
+@admin_bp.route("/pase_lista", methods=["GET"])
+@jwt_required()
+def pase_lista_evento():
+    """
+    Devuelve la lista de asistentes relacionados a un evento,
+    incluyendo si tenían confirmación de asistencia.
+    """
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    id_evento = request.args.get("id_evento", type=int)
+    if not id_evento:
+        return jsonify({"ok": False, "message": "id_evento es requerido"}), 400
+
+    # Validar que el evento exista
+    evento = Evento.query.get(id_evento)
+    if not evento:
+        return jsonify({"ok": False, "message": "Evento no encontrado"}), 404
+
+    # Traer registros + persona + rol + asistencia física (si existe)
+    registros = (
+        db.session.query(Registro, Asistente, Persona, Rol, Asistencia)
+        .join(Asistente, Registro.id_asistente == Asistente.id_asistente)
+        .join(Persona, Asistente.id_asistente == Persona.id_persona)
+        .join(Rol, Asistente.id_rol == Rol.id_rol)
+        .outerjoin(Asistencia, Asistencia.id_registro == Registro.id_registro)
+        .filter(Registro.id_evento == id_evento)
+        .order_by(Persona.nombre_completo.asc())
+        .all()
+    )
+
+    data = []
+    for reg, asist, persona, rol, asistencia_fisica in registros:
+        data.append({
+            "id_registro": reg.id_registro,
+            "id_asistente": asist.id_asistente,
+            "nombre": persona.nombre_completo,
+            "correo": persona.correo,
+            "empresa": persona.empresa,
+            "rol": rol.nombre_rol,
+            "asistencia_estado": reg.asistencia,          # si / no / tal_vez / desconocido
+            "confirmado": reg.confirmado,                 # True / False / None
+            "invitados": reg.invitados,
+            "comentarios": reg.comentarios,
+            "check_in": True if asistencia_fisica and asistencia_fisica.hora_entrada else False
+        })
+
+    return jsonify({"ok": True, "evento": {
+                        "id_evento": evento.id_evento,
+                        "nombre": evento.nombre,
+                        "fecha": evento.fecha_inicio.strftime("%Y-%m-%d"),
+                    },
+                    "registros": data}), 200
+
+# =====================================
+# 10) Exportar pase de lista a CSV
+# =====================================
+@admin_bp.route("/pase_lista_csv", methods=["GET"])
+@jwt_required()
+def exportar_pase_lista_csv():
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    id_evento = request.args.get("id_evento", type=int)
+    if not id_evento:
+        return jsonify({"ok": False, "message": "id_evento es requerido"}), 400
+
+    evento = Evento.query.get(id_evento)
+    if not evento:
+        return jsonify({"ok": False, "message": "Evento no encontrado"}), 404
+
+    registros = (
+        db.session.query(Registro, Asistente, Persona, Rol, Asistencia)
+        .join(Asistente, Registro.id_asistente == Asistente.id_asistente)
+        .join(Persona, Asistente.id_asistente == Persona.id_persona)
+        .join(Rol, Asistente.id_rol == Rol.id_rol)
+        .outerjoin(Asistencia, Asistencia.id_registro == Registro.id_registro)
+        .filter(Registro.id_evento == id_evento)
+        .order_by(Persona.nombre_completo.asc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Encabezados
+    writer.writerow([
+        "id_evento",
+        "codigo_evento",
+        "nombre_evento",
+        "fecha_evento",
+        "id_registro",
+        "id_asistente",
+        "nombre",
+        "correo",
+        "empresa",
+        "rol",
+        "asistencia_estado",
+        "confirmado",
+        "invitados",
+        "comentarios",
+        "check_in",
+    ])
+
+    for reg, asist, persona, rol, asistencia_fisica in registros:
+        writer.writerow([
+            evento.id_evento,
+            evento.codigo,
+            evento.nombre,
+            evento.fecha_inicio.strftime("%Y-%m-%d"),
+            reg.id_registro,
+            asist.id_asistente,
+            persona.nombre_completo or "",
+            persona.correo or "",
+            persona.empresa or "",
+            rol.nombre_rol or "",
+            reg.asistencia or "",
+            "" if reg.confirmado is None else ("1" if reg.confirmado else "0"),
+            reg.invitados or 0,
+            (reg.comentarios or "").replace("\n", " ").replace("\r", " "),
+            "1" if (asistencia_fisica and asistencia_fisica.hora_entrada) else "0",
+        ])
+
+    output.seek(0)
+    filename = f"pase_lista_evento_{evento.id_evento}.csv"
+
+    return send_file(
+        io.BytesIO(output.getvalue().encode("utf-8-sig")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename
+    )
+
+# =====================================
+# 11) Importar pase de lista desde CSV
+# =====================================
+@admin_bp.route("/pase_lista_import", methods=["POST"])
+@jwt_required()
+def importar_pase_lista_csv():
+    """
+    Espera un CSV con al menos la columna 'correo'. Opcionalmente:
+    - asistencia_estado  (si / no / tal_vez / desconocido)
+    - confirmado         (1/0, true/false, sí/no)
+    - invitados          (entero)
+    Actualiza o crea registros en la tabla 'registros' para el evento.
+    """
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    id_evento = request.form.get("id_evento", type=int)
+    if not id_evento:
+        return jsonify({"ok": False, "message": "id_evento es requerido"}), 400
+
+    evento = Evento.query.get(id_evento)
+    if not evento:
+        return jsonify({"ok": False, "message": "Evento no encontrado"}), 404
+
+    if "file" not in request.files:
+        return jsonify({"ok": False, "message": "No se encontró archivo CSV (campo 'file')"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"ok": False, "message": "Nombre de archivo vacío"}), 400
+
+    try:
+        content = file.read().decode("utf-8-sig")
+    except Exception:
+        return jsonify({"ok": False, "message": "No se pudo leer el archivo como UTF-8"}), 400
+
+    reader = csv.DictReader(io.StringIO(content))
+
+    total = 0
+    actualizados = 0
+    creados = 0
+    no_encontrados = []
+
+    def parse_bool(val):
+        if val is None:
+            return None
+        s = str(val).strip().lower()
+        if s in ("1", "true", "t", "sí", "si", "yes", "y"):
+            return True
+        if s in ("0", "false", "f", "no", "n"):
+            return False
+        return None
+
+    ahora = datetime.utcnow()
+
+    for row in reader:
+        total += 1
+        correo = (row.get("correo") or "").strip()
+
+        if not correo:
+            no_encontrados.append({"motivo": "sin_correo", "row": row})
+            continue
+
+        persona = Persona.query.filter_by(correo=correo).first()
+        if not persona or not persona.asistente:
+            no_encontrados.append({"motivo": "persona_o_asistente_no_encontrado", "correo": correo})
+            continue
+
+        asistente = persona.asistente
+
+        # Buscar registro existente
+        reg = Registro.query.filter_by(
+            id_evento=id_evento,
+            id_asistente=asistente.id_asistente
+        ).first()
+
+        if not reg:
+            # Crear si no existe
+            reg = Registro(
+                id_evento=id_evento,
+                id_asistente=asistente.id_asistente,
+                asistencia="desconocido",
+                invitados=0,
+                confirmado=None,
+                fecha_confirmacion=None,
+                comentarios=None,
+                creado_en=ahora
+            )
+            db.session.add(reg)
+            creados += 1
+        else:
+            actualizados += 1
+
+        asistencia_estado = (row.get("asistencia_estado") or row.get("asistencia") or "").strip().lower()
+        if asistencia_estado in ("si", "sí", "no", "tal_vez", "desconocido"):
+            reg.asistencia = asistencia_estado
+
+        confirmado_val = row.get("confirmado") or ""
+        confirmado_bool = parse_bool(confirmado_val)
+        if confirmado_bool is not None:
+            reg.confirmado = confirmado_bool
+            reg.fecha_confirmacion = ahora
+
+        invitados_val = row.get("invitados") or ""
+        try:
+            reg.invitados = int(invitados_val) if invitados_val != "" else reg.invitados
+        except ValueError:
+            pass
+
+        comentarios_val = row.get("comentarios") or ""
+        if comentarios_val:
+            reg.comentarios = comentarios_val
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "message": "Importación completada.",
+        "resumen": {
+            "filas_totales": total,
+            "registros_creados": creados,
+            "registros_actualizados": actualizados,
+            "no_encontrados": no_encontrados
+        }
     }), 200

@@ -226,29 +226,36 @@
       <section id="sec-pase-lista" class="sec-block d-none">
         <h2 class="section-title">Pase de lista por evento</h2>
         <p class="text-muted small mb-3">
-          Selecciona un evento finalizado o en curso para obtener el pase de lista y marcar asistencia.
+          Selecciona un evento para obtener el pase de lista, ver quién tenía confirmación
+          y exportar/importar datos en CSV.
         </p>
 
         <div class="card card-agfi shadow-sm mb-4">
           <div class="card-body">
             <form class="row g-3 align-items-end">
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <label class="form-label req">Evento</label>
                 <select id="paseEvento" class="form-select">
                   <option value="">-- Selecciona evento --</option>
-                  <option value="1">Desayuno Asamblea Ordinaria (15/11/2025)</option>
-                  <option value="2">Networking AGFI Jóvenes (02/12/2025)</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <button type="button" class="btn btn-outline-secondary w-100" id="btnCargarPase">
                   Cargar lista
                 </button>
               </div>
-              <div class="col-md-3 text-md-end">
+              <div class="col-md-3">
                 <button type="button" class="btn btn-outline-success w-100" id="btnExportarPase">
-                  Exportar pase de lista
+                  Exportar CSV
                 </button>
+              </div>
+              <div class="col-md-3">
+                <div class="d-flex flex-column gap-1">
+                  <input type="file" id="paseCsvFile" accept=".csv" class="form-control form-control-sm">
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="btnImportarPase">
+                    Importar CSV
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -261,26 +268,18 @@
                 <th>Nombre</th>
                 <th>Empresa</th>
                 <th>Clasificación</th>
+                <th>Confirmación</th> <!-- 👈 nuevo -->
                 <th>Asistencia</th>
               </tr>
             </thead>
             <tbody id="tablaPaseLista">
-              <!-- Se llena dinámicamente -->
-              <!-- Ejemplo -->
-              <!--
-              <tr>
-                <td>María López</td>
-                <td>PEMEX</td>
-                <td>Ingeniero</td>
-                <td>
-                  <input class="form-check-input" type="checkbox" checked>
-                </td>
-              </tr>
-              -->
             </tbody>
           </table>
         </div>
+
+        <div class="small text-muted mt-2" id="paseListaMsg"></div>
       </section>
+
 
       <!-- ESCÁNER QR -->
       <section id="sec-qr-scan" class="sec-block d-none">
@@ -1346,6 +1345,257 @@ document.addEventListener('DOMContentLoaded', () => {
       cargarBuzonSugerencias();
     });
   }
+});
+</script>
+
+<script>
+// =========================
+// PASE DE LISTA (ADMIN)
+// =========================
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('agfi_token');
+  if (!token) return;
+
+  const selEvento     = document.getElementById('paseEvento');
+  const btnCargar     = document.getElementById('btnCargarPase');
+  const btnExportar   = document.getElementById('btnExportarPase');
+  const btnImportar   = document.getElementById('btnImportarPase');
+  const fileInput     = document.getElementById('paseCsvFile');
+  const tbody         = document.getElementById('tablaPaseLista');
+  const msgPase       = document.getElementById('paseListaMsg');
+
+  if (!selEvento || !tbody) return;
+
+  // ---- 1) Cargar lista de eventos en el select ----
+  async function cargarEventosEnSelect() {
+    try {
+      const res = await fetch('http://localhost:5000/admin/eventos', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const body = await res.json().catch(()=> ({}));
+
+      selEvento.innerHTML = '<option value="">-- Selecciona evento --</option>';
+
+      if (!res.ok || !body.ok) {
+        msgPase.textContent = body.message || 'Error al cargar eventos.';
+        msgPase.classList.add('text-danger');
+        return;
+      }
+
+      const eventos = body.eventos || [];
+      eventos.forEach(ev => {
+        const opt = document.createElement('option');
+        opt.value = ev.id_evento;
+        opt.textContent = `${ev.nombre} (${ev.fecha})`;
+        selEvento.appendChild(opt);
+      });
+
+    } catch (err) {
+      console.error('Error cargando eventos para pase de lista:', err);
+      msgPase.textContent = 'Error de comunicación al cargar eventos.';
+      msgPase.classList.add('text-danger');
+    }
+  }
+
+  // ---- 2) Cargar pase de lista para el evento seleccionado ----
+  async function cargarPaseLista() {
+    const idEvento = selEvento.value;
+    msgPase.textContent = '';
+    msgPase.classList.remove('text-danger', 'text-success');
+
+    if (!idEvento) {
+      msgPase.textContent = 'Selecciona un evento primero.';
+      msgPase.classList.add('text-danger');
+      return;
+    }
+
+    tbody.innerHTML = `
+      <tr><td colspan="5" class="text-muted">Cargando pase de lista...</td></tr>
+    `;
+
+    try {
+      const res = await fetch(`http://localhost:5000/admin/pase_lista?id_evento=${idEvento}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      const body = await res.json().catch(()=> ({}));
+
+      if (!res.ok || !body.ok) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-danger">
+              Error al cargar pase de lista: ${body.message || 'Error desconocido.'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const registros = body.registros || [];
+      if (registros.length === 0) {
+        tbody.innerHTML = `
+          <tr><td colspan="5" class="text-muted">No hay registros para este evento.</td></tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      registros.forEach(r => {
+        const tr = document.createElement('tr');
+
+        const textoConfirmacion = (r.confirmado === true)
+          ? 'Sí'
+          : (r.confirmado === false ? 'No' : '—');
+
+        const checked = (r.asistencia_estado === 'si' || r.check_in) ? 'checked' : '';
+
+        tr.innerHTML = `
+          <td>${r.nombre || ''}</td>
+          <td>${r.empresa || ''}</td>
+          <td>${r.rol || ''}</td>
+          <td>${textoConfirmacion}</td>
+          <td>
+            <input type="checkbox"
+                   class="form-check-input"
+                   data-id-registro="${r.id_registro}"
+                   ${checked}
+                   disabled>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      msgPase.textContent = `Total registros: ${registros.length}`;
+      msgPase.classList.add('text-muted');
+
+    } catch (err) {
+      console.error('Error en cargarPaseLista:', err);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-danger">
+            Error de comunicación con el servidor.
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  // ---- 3) Exportar CSV ----
+  async function exportarPaseLista() {
+    const idEvento = selEvento.value;
+    msgPase.textContent = '';
+    msgPase.classList.remove('text-danger', 'text-success');
+
+    if (!idEvento) {
+      msgPase.textContent = 'Selecciona un evento primero para exportar.';
+      msgPase.classList.add('text-danger');
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:5000/admin/pase_lista_csv?id_evento=${idEvento}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(()=> ({}));
+        msgPase.textContent = body.message || 'Error al exportar CSV.';
+        msgPase.classList.add('text-danger');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pase_lista_evento_${idEvento}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      msgPase.textContent = 'CSV exportado correctamente.';
+      msgPase.classList.add('text-success');
+
+    } catch (err) {
+      console.error('Error al exportar CSV:', err);
+      msgPase.textContent = 'Error de comunicación al exportar.';
+      msgPase.classList.add('text-danger');
+    }
+  }
+
+  // ---- 4) Importar CSV ----
+  async function importarPaseLista() {
+    const idEvento = selEvento.value;
+    msgPase.textContent = '';
+    msgPase.classList.remove('text-danger', 'text-success');
+
+    if (!idEvento) {
+      msgPase.textContent = 'Selecciona un evento primero para importar.';
+      msgPase.classList.add('text-danger');
+      return;
+    }
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+      msgPase.textContent = 'Selecciona un archivo CSV.';
+      msgPase.classList.add('text-danger');
+      return;
+    }
+
+    const file = fileInput.files[0];
+
+    const formData = new FormData();
+    formData.append('id_evento', idEvento);
+    formData.append('file', file);
+
+    msgPase.textContent = 'Importando CSV...';
+    msgPase.classList.add('text-muted');
+
+    try {
+      const res = await fetch('http://localhost:5000/admin/pase_lista_import', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token
+          // NO ponemos Content-Type; FormData lo maneja
+        },
+        body: formData
+      });
+
+      const body = await res.json().catch(()=> ({}));
+
+      if (!res.ok || !body.ok) {
+        msgPase.textContent = body.message || 'Error al importar CSV.';
+        msgPase.classList.add('text-danger');
+        return;
+      }
+
+      msgPase.textContent = `Importación correcta. Filas: ${
+        body.resumen?.filas_totales || 0
+      }, creados: ${
+        body.resumen?.registros_creados || 0
+      }, actualizados: ${
+        body.resumen?.registros_actualizados || 0
+      }`;
+      msgPase.classList.add('text-success');
+
+      // Recargar pase de lista con los cambios
+      cargarPaseLista();
+
+    } catch (err) {
+      console.error('Error al importar CSV:', err);
+      msgPase.textContent = 'Error de comunicación al importar.';
+      msgPase.classList.add('text-danger');
+    }
+  }
+
+  // Listeners
+  if (btnCargar)   btnCargar.addEventListener('click', cargarPaseLista);
+  if (btnExportar) btnExportar.addEventListener('click', exportarPaseLista);
+  if (btnImportar) btnImportar.addEventListener('click', importarPaseLista);
+
+  // Carga inicial del select
+  cargarEventosEnSelect();
 });
 </script>
 
