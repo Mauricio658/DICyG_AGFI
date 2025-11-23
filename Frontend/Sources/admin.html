@@ -116,6 +116,17 @@
   @media(max-width:768px){
     .sidebar{display:none;}
   }
+
+  .btn-agfi {
+  background: #d22534;
+  border-color: #d22534;
+  }
+
+  .btn-agfi:hover {
+    background: #b71c29;
+    border-color: #b71c29;
+  }
+
 </style>
 </head>
 <body>
@@ -490,9 +501,9 @@
               </div>
 
               <div class="col-12 d-flex flex-wrap gap-2 mt-3">
-                <button class="btn btn-agfi text-white" id="btnGuardarFormal" type="submit">
-                  Guardar asistente
-                </button>
+                  <button id="btnRegistroAsistenteFormal" class="btn btn-agfi text-white mt-3">
+                      Registrar asistente
+                  </button>
                 <div class="small text-muted ms-auto" id="asistenteFormalMsg"></div>
               </div>
             </form>
@@ -575,8 +586,8 @@
 
 
               <div class="col-12 d-flex flex-wrap gap-2 mt-3">
-                <button class="btn btn-agfi text-white" id="btnCrearEvento" type="submit">
-                  Guardar evento
+                <button id="foBtnCrearEvento" class="btn btn-agfi text-white mt-3" >
+                    Registrar evento
                 </button>
                 <button class="btn btn-outline-secondary" id="btnInvitaciones" type="button">
                   Enviar invitaciones
@@ -732,6 +743,30 @@
     </main>
   </section>
 </div>
+
+<!-- Modal de confirmación de logout -->
+<div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logoutModalLabel">Cerrar sesión</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
+      </div>
+      <div class="modal-body">
+        ¿Seguro que deseas cerrar sesión y salir del panel de administración?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-agfi text-white" id="confirmLogoutBtn">
+          Sí, cerrar sesión
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -1114,8 +1149,49 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const logoutBtn = document.getElementById("logoutBtn");
+  const logoutModalEl = document.getElementById("logoutModal");
+  const confirmLogoutBtn = document.getElementById("confirmLogoutBtn");
 
+  if (!logoutBtn || !logoutModalEl || !confirmLogoutBtn) return;
 
+  // Instancia del modal de Bootstrap
+  const logoutModal = new bootstrap.Modal(logoutModalEl);
+
+  // Al hacer clic en "Cerrar sesión" del sidebar -> mostrar modal
+  logoutBtn.addEventListener("click", () => {
+    logoutModal.show();
+  });
+
+  // Al confirmar en el modal
+  confirmLogoutBtn.addEventListener("click", async () => {
+    const token = localStorage.getItem("agfi_token");
+
+    try {
+      await fetch("http://localhost:5000/auth/logout", {
+        method: "POST",
+        headers: {
+          "Authorization": token ? "Bearer " + token : "",
+          "Content-Type": "application/json"
+        }
+      });
+    } catch (err) {
+      console.error("Error llamando a /auth/logout:", err);
+    }
+
+    // Borrar sesión en el cliente
+    localStorage.removeItem("agfi_token");
+    localStorage.removeItem("agfi_role");
+    localStorage.removeItem("agfi_user");
+
+    // Cerrar el modal por si acaso y redirigir
+    logoutModal.hide();
+    window.location.href = "index.html";
+  });
+});
 </script>
 
 
