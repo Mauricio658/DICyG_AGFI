@@ -152,6 +152,7 @@
       <button class="btn nav-link-admin" data-section="sec-eventos">Eventos</button>
       <button class="btn nav-link-admin" data-section="sec-admin-users">Usuarios admin</button>
       <button class="btn nav-link-admin" data-section="sec-cumples">Cumpleaños</button>
+      <button class="btn nav-link-admin" data-section="sec-buzon">Buzón de sugerencias</button>
     </nav>
 
     <div class="sidebar-footer">
@@ -737,8 +738,45 @@
             </div>
           </div>
         </div>
-
       </section>
+      <!-- BUZÓN DE SUGERENCIAS -->
+      <section id="sec-buzon" class="sec-block d-none">
+        <h2 class="section-title">Buzón de sugerencias</h2>
+        <p class="text-muted small mb-3">
+          Aquí se muestran los comentarios anónimos que han enviado los asistentes
+          desde su perfil (sugerencias, quejas, comentarios generales).
+        </p>
+
+        <div class="card card-agfi shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fw-semibold mb-0">Comentarios recibidos</h5>
+              <button id="btnRefrescarBuzon" class="btn btn-sm btn-outline-secondary">
+                Refrescar
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th style="width: 160px;">Fecha</th>
+                    <th style="width: 180px;">Evento relacionado</th>
+                    <th style="width: 120px;">Asunto</th>
+                    <th>Mensaje</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaBuzonBody">
+                  <tr>
+                    <td colspan="4" class="text-muted">Aún no hay comentarios.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
 
     </main>
   </section>
@@ -835,24 +873,30 @@
    // =========================
   // 2) Navegación entre secciones
   // =========================
-  const sectionButtons = document.querySelectorAll('.nav-link-admin, [data-section].btn-outline-secondary');
-  const sections = document.querySelectorAll('.sec-block');
+const sectionButtons = document.querySelectorAll('.nav-link-admin, [data-section].btn-outline-secondary');
+const sections = document.querySelectorAll('.sec-block');
 
-  sectionButtons.forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const target = btn.getAttribute('data-section');
-      // toggle active
-      document.querySelectorAll('.nav-link-admin').forEach(x=>x.classList.remove('active'));
-      const sameBtnSidebar = document.querySelector('.nav-link-admin[data-section="'+target+'"]');
-      if(sameBtnSidebar) sameBtnSidebar.classList.add('active');
+sectionButtons.forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const target = btn.getAttribute('data-section');
+    // toggle active
+    document.querySelectorAll('.nav-link-admin').forEach(x=>x.classList.remove('active'));
+    const sameBtnSidebar = document.querySelector('.nav-link-admin[data-section="'+target+'"]');
+    if(sameBtnSidebar) sameBtnSidebar.classList.add('active');
 
-      // mostrar/ocultar secciones
-      sections.forEach(sec=>{
-        sec.classList.add('d-none');
-      });
-      document.getElementById(target).classList.remove('d-none');
+    // mostrar/ocultar secciones
+    sections.forEach(sec=>{
+      sec.classList.add('d-none');
     });
+    document.getElementById(target).classList.remove('d-none');
+
+    // 👇 Cuando entras al buzón, carga los datos
+    if (target === 'sec-buzon' && typeof window.cargarBuzonSugerencias === 'function') {
+      window.cargarBuzonSugerencias();
+    }
   });
+});
+
 </script>
 <script>
 // =========================
@@ -1191,6 +1235,117 @@ document.addEventListener("DOMContentLoaded", () => {
     logoutModal.hide();
     window.location.href = "index.html";
   });
+});
+</script>
+<script>
+// =========================
+// BUZÓN DE SUGERENCIAS (ADMIN)
+// =========================
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('agfi_token');
+  const tbody = document.getElementById('tablaBuzonBody');
+  const btnRefrescar = document.getElementById('btnRefrescarBuzon');
+
+  if (!tbody) return;
+
+  async function cargarBuzonSugerencias() {
+    if (!token) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-danger">
+            No hay sesión activa. Vuelve a iniciar sesión.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" class="text-muted">Cargando comentarios...</td>
+      </tr>
+    `;
+
+    try {
+      const res = await fetch('http://localhost:5000/admin/buzon', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-danger">
+              Error al cargar comentarios: ${body.message || 'Error desconocido.'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const comentarios = body.comentarios || [];
+
+      if (comentarios.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-muted">
+              Aún no hay comentarios en el buzón.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      comentarios.forEach(c => {
+        const tr = document.createElement('tr');
+
+        // Fecha bonita
+        let fechaStr = c.creado_en || '';
+        try {
+          if (c.creado_en) {
+            const d = new Date(c.creado_en);
+            fechaStr = d.toLocaleString();
+          }
+        } catch(e) {}
+
+        // Evento relacionado
+        const eventoTexto = c.evento_relacionado || 'N/A';
+
+        tr.innerHTML = `
+          <td>${fechaStr}</td>
+          <td>${eventoTexto}</td>
+          <td>${c.asunto || ''}</td>
+          <td>${c.mensaje || ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+    } catch (err) {
+      console.error('Error al cargar buzón:', err);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-danger">
+            Error de comunicación con el servidor.
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  // Hacemos la función global para que el nav la pueda invocar
+  window.cargarBuzonSugerencias = cargarBuzonSugerencias;
+
+  // Botón "Refrescar"
+  if (btnRefrescar) {
+    btnRefrescar.addEventListener('click', () => {
+      cargarBuzonSugerencias();
+    });
+  }
 });
 </script>
 

@@ -246,9 +246,7 @@
                   <label class="form-label">Evento relacionado (opcional)</label>
                   <select class="form-select" id="inpEventoRelacionado">
                     <option value="">-- Selecciona evento --</option>
-                    <option>Desayuno Asamblea Ordinaria (15/11/2025)</option>
-                    <option>Networking AGFI Jóvenes (02/12/2025)</option>
-                    <option>Otro / General</option>
+                    <option value="Otro / General">Otro / General</option>
                   </select>
                 </div>
                 <div class="col-12">
@@ -461,6 +459,74 @@
     }
   }
 
+    function formatFechaCorta(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('es-MX', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (e) {
+      return iso;
+    }
+  }
+
+  async function cargarEventosParaBuzon() {
+    const select = document.getElementById('inpEventoRelacionado');
+    if (!select) return;
+
+    // Preservamos la primera opción (placeholder) y, si existe, "Otro / General"
+    const placeholder = select.querySelector('option[value=""]');
+    const otroGeneral = Array.from(select.options).find(
+      opt => opt.value === 'Otro / General'
+    );
+
+    // Limpiamos todo
+    select.innerHTML = '';
+    if (placeholder) select.appendChild(placeholder);
+    if (otroGeneral) select.appendChild(otroGeneral);
+
+    try {
+      const res = await fetch(`${API_BASE}/perfil/eventos_buzon`, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      console.log('DEBUG /perfil/eventos_buzon =>', res.status, data);
+
+      if (!res.ok || !data.ok) {
+        // Si falla, dejamos solo las opciones básicas
+        return;
+      }
+
+      const eventos = data.eventos || [];
+      eventos.forEach(ev => {
+        const fechaFmt = formatFechaCorta(ev.fecha_inicio);
+        const label = `${ev.nombre} (${fechaFmt})`;
+
+        const opt = document.createElement('option');
+        // Guardamos el TEXTO que queremos que se guarde en la BD como evento_relacionado
+        opt.value = label;
+        opt.textContent = label;
+        // Insertamos antes de "Otro / General", si existe
+        if (otroGeneral) {
+          select.insertBefore(opt, otroGeneral);
+        } else {
+          select.appendChild(opt);
+        }
+      });
+
+    } catch (err) {
+      console.error('Error cargando eventos para buzón', err);
+      // Si hay error de red, simplemente se quedan las opciones básicas
+    }
+  }
+
   function inicializarBuzon() {
     const formBuzon = document.getElementById('form-buzon');
     if (!formBuzon) return;
@@ -666,7 +732,7 @@
     // Cargar info inicial
     cargarPerfil();
     cargarEventosProximos();
-
+    inicializarBuzon();
     // Handlers de guardado
     const formDatos = document.getElementById('form-datos-personales');
     const formMedico = document.getElementById('form-medico');

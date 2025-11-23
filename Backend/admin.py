@@ -9,7 +9,8 @@ from models import (
     Rol,
     AsistenteMedico,
     Evento,
-    Registro
+    Registro,
+    BuzonComentario
 )
 
 
@@ -432,3 +433,44 @@ def listar_eventos():
         })
 
     return jsonify({"ok": True, "eventos": data}), 200
+
+# =====================================
+# 8) Listar comentarios del buzón
+# =====================================
+@admin_bp.route("/buzon", methods=["GET"])
+@jwt_required()
+def listar_buzon():
+    """
+    Devuelve todos los comentarios anónimos del buzón de sugerencias
+    para que el administrador los pueda revisar.
+    """
+    identidad = get_jwt_identity()
+    rol = identidad.get("rol") if isinstance(identidad, dict) else None
+
+    # Solo admin o staff
+    if rol not in ("admin", "staff"):
+        return jsonify({
+            "ok": False,
+            "message": "No tienes permisos para ver el buzón."
+        }), 403
+
+    comentarios = (
+        BuzonComentario.query
+        .order_by(BuzonComentario.creado_en.desc())
+        .all()
+    )
+
+    data = []
+    for c in comentarios:
+        data.append({
+            "id": c.id_comentario,
+            "asunto": c.asunto,
+            "mensaje": c.mensaje,
+            "evento_relacionado": c.evento_relacionado,
+            "creado_en": c.creado_en.isoformat() if c.creado_en else None,
+        })
+
+    return jsonify({
+        "ok": True,
+        "comentarios": data
+    }), 200
