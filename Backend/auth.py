@@ -4,7 +4,7 @@ from flask_jwt_extended import create_access_token
 from datetime import timedelta
 from flask_cors import CORS
 from datetime import datetime
-
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Persona, Asistente, Rol
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -110,4 +110,32 @@ def login():
         "message": "Login exitoso",
         "token": access_token,
         "user": identidad
+    }), 200
+
+#=========================== Ruta de Logout ===========================#
+
+@auth_bp.route("/logout", methods=["POST"])
+@jwt_required()
+def logout():
+    identidad = get_jwt_identity()  # viene del JWT
+    correo = identidad.get("correo")
+    id_persona = identidad.get("id_persona")
+
+    # Determinar si es asistente para logs
+    asistente = Asistente.query.filter_by(id_asistente=id_persona).first()
+    id_asistente_log = asistente.id_asistente if asistente else None
+
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+
+    # Registrar log
+    registrar_log(
+        id_asistente=id_asistente_log,
+        accion=f"Logout EXITOSO desde IP {ip}. Usuario: {correo}",
+        descripcion=f"User-Agent: {request.headers.get('User-Agent', '')}",
+        actor=correo
+    )
+
+    return jsonify({
+        "ok": True,
+        "message": "Logout exitoso. El token debe eliminarse del cliente."
     }), 200

@@ -6,6 +6,7 @@ from flask_jwt_extended import JWTManager
 from models import db, Persona
 from auth import auth_bp
 from admin import admin_bp
+from perfil import perfil_bp
 
 def create_app():
     app = Flask(__name__)
@@ -34,6 +35,8 @@ def create_app():
     # Registrar blueprint de auth
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(perfil_bp)
+
     #============================ PRUEBAS ============================#
     # Ruta de prueba
     @app.route("/ping")
