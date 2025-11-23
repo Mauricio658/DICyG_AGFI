@@ -15,8 +15,6 @@ from models import (
 
 )
 
-
-
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 from io import BytesIO
 from flask import send_file, current_app
@@ -25,6 +23,31 @@ from PIL import Image, ImageDraw, ImageFont
 import csv             
 import io                     
 import os    
+
+def _parse_qr_code_to_id_asistente(code: str):
+    """
+    Recibe el texto leído del QR o lo que se tecleó.
+    Soporta:
+    - 'AGFI-123'
+    - 'agfi-123'
+    - '123' (solo número)
+    Devuelve id_asistente (int) o None si no se puede parsear.
+    """
+    if not code:
+        return None
+    s = str(code).strip()
+    if not s:
+        return None
+
+    # Si viene con prefijo AGFI-
+    if s.upper().startswith("AGFI-"):
+        s = s.split("-", 1)[1].strip()
+
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
 
 # =====================================
 # 1) Verificar token y rol (admin/staff)
@@ -741,5 +764,228 @@ def importar_pase_lista_csv():
             "registros_creados": creados,
             "registros_actualizados": actualizados,
             "no_encontrados": no_encontrados
+        }
+    }), 200
+
+# =====================================
+# 12) Buscar asistente por QR + evento
+# =====================================
+@admin_bp.route("/qr_lookup", methods=["GET"])
+@jwt_required()
+def qr_lookup():
+    """
+    Busca a un asistente a partir del texto del QR (o id numérico)
+    y del evento seleccionado. Devuelve datos básicos de la persona
+    y el estado de asistencia para ese evento.
+    """
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    code = (request.args.get("code") or "").strip()
+    id_evento = request.args.get("id_evento", type=int)
+
+    if not code or not id_evento:
+        return jsonify({"ok": False, "message": "Faltan code o id_evento."}), 400
+
+    id_asistente = _parse_qr_code_to_id_asistente(code)
+    if not id_asistente:
+        return jsonify({"ok": False, "message": "Código QR inválido."}), 400
+
+    asistente = Asistente.query.get(id_asistente)
+    if not asistente or not asistente.persona:
+        return jsonify({"ok": False, "message": "Asistente no encontrado."}), 404
+
+    persona = asistente.persona
+    rol = asistente.rol
+
+    # Buscar registro para ese evento
+    registro = Registro.query.filter_by(
+        id_evento=id_evento,
+        id_asistente=id_asistente
+    ).first()
+
+    asistencia_fisica = registro.asistencia_registro if registro else None
+
+    response = {
+        "ok": True,
+        "asistente": {
+            "id_asistente": id_asistente,
+            "codigo_qr": f"AGFI-{id_asistente}",
+            "nombre": persona.nombre_completo,
+            "correo": persona.correo,
+            "empresa": persona.empresa,
+            "telefono": persona.telefono,
+            "carrera": persona.carrera,
+            "generacion": asistente.generacion,
+            "rol": rol.nombre_rol if rol else None,
+        },
+        "registro": None,
+        "asistencia": None
+    }
+
+    if registro:
+        response["registro"] = {
+            "id_registro": registro.id_registro,
+            "asistencia_estado": registro.asistencia,
+            "confirmado": registro.confirmado,
+            "invitados": registro.invitados,
+            "comentarios": registro.comentarios,
+        }
+
+    if asistencia_fisica:
+        response["asistencia"] = {
+            "id_asistencia": asistencia_fisica.id_asistencia,
+            "hora_entrada": asistencia_fisica.hora_entrada.isoformat() if asistencia_fisica.hora_entrada else None,
+            "numero_mesa": asistencia_fisica.numero_mesa,
+            "numero_asiento": asistencia_fisica.numero_asiento,
+            "codigo_gafete": asistencia_fisica.codigo_gafete,
+        }
+
+    return jsonify(response), 200
+
+# =====================================
+# 13) Actualizar datos básicos y marcar asistencia
+# =====================================
+@admin_bp.route("/qr_checkin", methods=["POST"])
+@jwt_required()
+def qr_checkin():
+    """
+    Marca asistencia física usando la tabla 'asistencia'.
+    - Puede recibir 'code' (AGFI-123 o '123') o directamente 'id_asistente'.
+    - Requiere 'id_evento'.
+    - Opcionalmente puede actualizar datos de Persona/Asistente (nombre, correo, empresa, rol, etc.).
+    """
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("admin", "staff"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    data = request.get_json() or {}
+
+    id_evento = data.get("id_evento")
+    if not id_evento:
+        return jsonify({"ok": False, "message": "id_evento es requerido."}), 400
+
+    try:
+        id_evento = int(id_evento)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "id_evento inválido."}), 400
+
+    evento = Evento.query.get(id_evento)
+    if not evento:
+        return jsonify({"ok": False, "message": "Evento no encontrado."}), 404
+
+    # Resolver id_asistente
+    id_asistente = data.get("id_asistente")
+    if id_asistente is None:
+        code = data.get("code")
+        id_asistente = _parse_qr_code_to_id_asistente(code)
+
+    try:
+        id_asistente = int(id_asistente)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "No se pudo resolver el asistente."}), 400
+
+    asistente = Asistente.query.get(id_asistente)
+    if not asistente or not asistente.persona:
+        return jsonify({"ok": False, "message": "Asistente no encontrado."}), 404
+
+    persona = asistente.persona
+
+    # --------- 1) Actualizar datos básicos si vienen en el payload ---------
+    nombre = data.get("nombre")
+    correo = data.get("correo")
+    empresa = data.get("empresa")
+    rol_front = data.get("rol")  # ingeniero / becario / estudiante
+
+    # Validar correo único si se cambia
+    if correo and correo != persona.correo:
+        existe = Persona.query.filter(
+            Persona.correo == correo,
+            Persona.id_persona != persona.id_persona
+        ).first()
+        if existe:
+            return jsonify({
+                "ok": False,
+                "message": "Ya existe otra persona con ese correo."
+            }), 409
+
+    if nombre:
+        persona.nombre_completo = nombre.strip()
+    if correo:
+        persona.correo = correo.strip()
+    if empresa is not None:
+        persona.empresa = empresa.strip() if isinstance(empresa, str) else empresa
+
+    # Actualizar rol si viene
+    if rol_front:
+        rol_obj = Rol.query.filter_by(nombre_rol=rol_front).first()
+        if not rol_obj:
+            return jsonify({"ok": False, "message": "Rol de asistente no válido."}), 400
+        asistente.id_rol = rol_obj.id_rol
+
+    # --------- 2) Garantizar que exista un registro para ese evento ---------
+    ahora = datetime.utcnow()
+
+    registro = Registro.query.filter_by(
+        id_evento=id_evento,
+        id_asistente=id_asistente
+    ).first()
+
+    creado_registro = False
+
+    if not registro:
+        registro = Registro(
+            id_evento=id_evento,
+            id_asistente=id_asistente,
+            asistencia="desconocido",
+            invitados=0,
+            confirmado=None,
+            fecha_confirmacion=None,
+            comentarios=None,
+            creado_en=ahora
+        )
+        db.session.add(registro)
+        creado_registro = True
+
+    # Marcamos asistencia lógica (RSVP vs asistencia real)
+    registro.asistencia = 'si'
+    if registro.confirmado is None:
+        registro.confirmado = True
+        registro.fecha_confirmacion = ahora
+
+    # --------- 3) Marcar asistencia física (tabla ASISTENCIA) ---------
+    asistencia_obj = registro.asistencia_registro
+    created_asistencia = False
+
+    if not asistencia_obj:
+        asistencia_obj = Asistencia(
+            id_registro=registro.id_registro,
+            hora_entrada=ahora,
+            numero_mesa=None,
+            numero_asiento=None,
+            codigo_gafete=f"AGFI-{id_asistente}",
+            creado_en=ahora
+        )
+        db.session.add(asistencia_obj)
+        created_asistencia = True
+    else:
+        # Si ya tenía hora_entrada, no la pisamos.
+        if not asistencia_obj.hora_entrada:
+            asistencia_obj.hora_entrada = ahora
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "message": "Asistencia registrada correctamente.",
+        "detalles": {
+            "id_asistente": id_asistente,
+            "id_evento": id_evento,
+            "id_registro": registro.id_registro,
+            "id_asistencia": asistencia_obj.id_asistencia,
+            "hora_entrada": asistencia_obj.hora_entrada.isoformat() if asistencia_obj.hora_entrada else None,
+            "registro_creado": creado_registro,
+            "asistencia_creada": created_asistencia
         }
     }), 200

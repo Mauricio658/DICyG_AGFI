@@ -130,7 +130,6 @@
 </style>
 </head>
 <body>
-
 <div class="layout">
 
   <!-- SIDEBAR -->
@@ -285,25 +284,39 @@
       <section id="sec-qr-scan" class="sec-block d-none">
         <h2 class="section-title">Registro rápido por QR</h2>
         <p class="text-muted small mb-3">
-          Escanea el QR de la credencial. Si no cambias nada y confirmas, se registra asistencia.
-          Si necesitas actualizar datos, edítalos antes de confirmar.
+          Selecciona el evento, escanea el QR de la credencial (o escribe el código),
+          revisa/ajusta los datos y marca asistencia. Se registrará la hora de entrada
+          en la tabla de asistencia.
         </p>
 
         <div class="card card-agfi shadow-sm mb-4">
           <div class="card-body">
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label req">ID / QR leído</label>
-                <input type="text" class="form-control" id="qrInput" placeholder="Pega aquí el código leído">
+              <div class="col-md-4">
+                <label class="form-label req">Evento</label>
+                <select class="form-select" id="qrEvento">
+                  <option value="">-- Selecciona evento --</option>
+                </select>
               </div>
-              <div class="col-md-3 d-grid">
+              <div class="col-md-4">
+                <label class="form-label req">ID / QR leído</label>
+                <input type="text" class="form-control" id="qrInput" placeholder="Ej. AGFI-123 o 123">
+              </div>
+              <div class="col-md-2 d-grid">
                 <button class="btn btn-outline-secondary" id="btnBuscarQR">Buscar persona</button>
               </div>
-              <div class="col-md-3 d-grid">
+              <div class="col-md-2 d-grid">
                 <button class="btn btn-outline-success" id="btnMarcarAsistencia">
                   Confirmar asistencia
                 </button>
               </div>
+              <div class="mt-4">
+                <h5 class="fw-semibold">Escáner con cámara</h5>
+                <div id="qrCamContainer" style="width: 350px;"></div>
+                <button id="btnIniciarCam" class="btn btn-outline-primary mt-2">Iniciar cámara</button>
+                <button id="btnDetenerCam" class="btn btn-outline-danger mt-2 d-none">Detener cámara</button>
+              </div>
+
             </div>
           </div>
         </div>
@@ -326,10 +339,11 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Clasificación</label>
-                <input class="form-control" id="qrRol">
+                <input class="form-control" id="qrRol" placeholder="ingeniero / becario / estudiante">
               </div>
             </div>
-            <div class="text-end mt-3">
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <div class="small text-muted" id="qrMsg"></div>
               <button class="btn btn-agfi text-white btn-sm" id="btnGuardarYAsistencia">
                 Guardar cambios y marcar asistencia
               </button>
@@ -1596,6 +1610,325 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Carga inicial del select
   cargarEventosEnSelect();
+});
+</script>
+<script src="html5-qrcode.min.js"></script>
+
+<script>
+// =========================
+// ESCÁNER QR (ADMIN)
+// =========================
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('agfi_token');
+  if (!token) return;
+
+  const selEvento   = document.getElementById('qrEvento');
+  const inputQR     = document.getElementById('qrInput');
+  const btnBuscar   = document.getElementById('btnBuscarQR');
+  const btnCheckin  = document.getElementById('btnMarcarAsistencia');
+  const btnGuardar  = document.getElementById('btnGuardarYAsistencia');
+
+  const inpNombre   = document.getElementById('qrNombre');
+  const inpCorreo   = document.getElementById('qrCorreo');
+  const inpEmpresa  = document.getElementById('qrEmpresa');
+  const inpRol      = document.getElementById('qrRol');
+
+  const msg         = document.getElementById('qrMsg');
+
+  if (!selEvento || !inputQR || !btnBuscar || !btnCheckin || !btnGuardar) return;
+
+  let estadoActual = {
+    id_asistente: null,
+    id_registro: null,
+    codigo_qr: null,
+    ya_checkin: false,
+    hora_entrada: null
+  };
+
+  // -------- 1) Cargar eventos en el select de QR --------
+  async function cargarEventosQR() {
+    try {
+      const res = await fetch('http://localhost:5000/admin/eventos', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const body = await res.json().catch(() => ({}));
+
+      selEvento.innerHTML = '<option value="">-- Selecciona evento --</option>';
+
+      if (!res.ok || !body.ok) {
+        msg.textContent = body.message || 'Error al cargar eventos.';
+        msg.classList.remove('text-success');
+        msg.classList.add('text-danger');
+        return;
+      }
+
+      const eventos = body.eventos || [];
+      eventos.forEach(ev => {
+        const opt = document.createElement('option');
+        opt.value = ev.id_evento;
+        opt.textContent = `${ev.nombre} (${ev.fecha})`;
+        selEvento.appendChild(opt);
+      });
+
+    } catch (err) {
+      console.error('Error cargando eventos para QR:', err);
+      msg.textContent = 'Error de comunicación al cargar eventos.';
+      msg.classList.remove('text-success');
+      msg.classList.add('text-danger');
+    }
+  }
+
+  // -------- 2) Buscar persona por QR + evento --------
+  async function buscarPorQR() {
+    msg.textContent = '';
+    msg.classList.remove('text-danger', 'text-success');
+
+    const idEvento = selEvento.value;
+    const code = inputQR.value.trim();
+
+    if (!idEvento) {
+      msg.textContent = 'Selecciona un evento.';
+      msg.classList.add('text-danger');
+      return;
+    }
+    if (!code) {
+      msg.textContent = 'Escribe o pega el código del QR.';
+      msg.classList.add('text-danger');
+      return;
+    }
+
+    // Limpiar estado visual
+    inpNombre.value  = '';
+    inpCorreo.value  = '';
+    inpEmpresa.value = '';
+    inpRol.value     = '';
+    estadoActual = { id_asistente: null, id_registro: null, codigo_qr: code, ya_checkin: false, hora_entrada: null };
+
+    try {
+      const url = `http://localhost:5000/admin/qr_lookup?code=${encodeURIComponent(code)}&id_evento=${encodeURIComponent(idEvento)}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        msg.textContent = body.message || 'No se encontró la persona.';
+        msg.classList.add('text-danger');
+        return;
+      }
+
+      const a = body.asistente || {};
+      const reg = body.registro || null;
+      const asis = body.asistencia || null;
+
+      inpNombre.value  = a.nombre || '';
+      inpCorreo.value  = a.correo || '';
+      inpEmpresa.value = a.empresa || '';
+      inpRol.value     = a.rol || '';
+
+      estadoActual.id_asistente = a.id_asistente;
+      estadoActual.id_registro  = reg ? reg.id_registro : null;
+      estadoActual.codigo_qr    = a.codigo_qr;
+
+      if (asis && asis.hora_entrada) {
+        estadoActual.ya_checkin   = true;
+        estadoActual.hora_entrada = asis.hora_entrada;
+        msg.textContent = 'Esta persona ya tiene hora de entrada registrada.';
+        msg.classList.add('text-muted');
+      } else {
+        msg.textContent = 'Persona localizada. Aún sin registro de hora de entrada.';
+        msg.classList.add('text-success');
+      }
+
+    } catch (err) {
+      console.error('Error en buscarPorQR:', err);
+      msg.textContent = 'Error de comunicación con el servidor.';
+      msg.classList.add('text-danger');
+    }
+  }
+
+  // -------- 3) Marcar asistencia sin cambiar datos --------
+  async function marcarAsistenciaSimple() {
+    msg.textContent = '';
+    msg.classList.remove('text-danger', 'text-success');
+
+    const idEvento = selEvento.value;
+    if (!idEvento) {
+      msg.textContent = 'Selecciona un evento.';
+      msg.classList.add('text-danger');
+      return;
+    }
+
+    if (!estadoActual.id_asistente) {
+      msg.textContent = 'Primero busca a la persona por QR.';
+      msg.classList.add('text-danger');
+      return;
+    }
+
+    try {
+      const res = await fetch('http://localhost:5000/admin/qr_checkin', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id_evento: idEvento,
+          id_asistente: estadoActual.id_asistente
+        })
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        msg.textContent = body.message || 'Error al registrar asistencia.';
+        msg.classList.add('text-danger');
+        return;
+      }
+
+      const det = body.detalles || {};
+      estadoActual.hora_entrada = det.hora_entrada;
+      estadoActual.ya_checkin   = true;
+
+      msg.textContent = 'Asistencia registrada correctamente.';
+      msg.classList.add('text-success');
+
+    } catch (err) {
+      console.error('Error en marcarAsistenciaSimple:', err);
+      msg.textContent = 'Error de comunicación con el servidor.';
+      msg.classList.add('text-danger');
+    }
+  }
+
+  // -------- 4) Guardar cambios + marcar asistencia --------
+  async function guardarYMarcar() {
+    msg.textContent = '';
+    msg.classList.remove('text-danger', 'text-success');
+
+    const idEvento = selEvento.value;
+    if (!idEvento) {
+      msg.textContent = 'Selecciona un evento.';
+      msg.classList.add('text-danger');
+      return;
+    }
+
+    if (!estadoActual.id_asistente) {
+      msg.textContent = 'Primero busca a la persona por QR.';
+      msg.classList.add('text-danger');
+      return;
+    }
+
+    const payload = {
+      id_evento: idEvento,
+      id_asistente: estadoActual.id_asistente,
+      nombre: inpNombre.value.trim() || null,
+      correo: inpCorreo.value.trim() || null,
+      empresa: inpEmpresa.value.trim() || null,
+      rol: inpRol.value.trim() || null   // Debe ser ingeniero / becario / estudiante
+    };
+
+    try {
+      const res = await fetch('http://localhost:5000/admin/qr_checkin', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        msg.textContent = body.message || 'Error al guardar y registrar asistencia.';
+        msg.classList.add('text-danger');
+        return;
+      }
+
+      const det = body.detalles || {};
+      estadoActual.hora_entrada = det.hora_entrada;
+      estadoActual.ya_checkin   = true;
+
+      msg.textContent = 'Datos actualizados y asistencia registrada correctamente.';
+      msg.classList.add('text-success');
+
+    } catch (err) {
+      console.error('Error en guardarYMarcar:', err);
+      msg.textContent = 'Error de comunicación con el servidor.';
+      msg.classList.add('text-danger');
+    }
+  }
+
+  // Listeners
+  btnBuscar.addEventListener('click', (e) => {
+    e.preventDefault();
+    buscarPorQR();
+  });
+
+  btnCheckin.addEventListener('click', (e) => {
+    e.preventDefault();
+    marcarAsistenciaSimple();
+  });
+
+  btnGuardar.addEventListener('click', (e) => {
+    e.preventDefault();
+    guardarYMarcar();
+  });
+
+  // Puedes hacer Enter en el input de QR para buscar
+  inputQR.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscarPorQR();
+    }
+  });
+
+  // Carga inicial eventos
+  cargarEventosQR();
+});
+</script>
+<script>
+// ===============================
+//     LECTOR DE CÓDIGOS QR
+// ===============================
+let html5QrCode = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  const iniciarBtn  = document.getElementById("btnIniciarCam");
+  const detenerBtn  = document.getElementById("btnDetenerCam");
+  const camDiv      = document.getElementById("qrCamContainer");
+  const inputQR     = document.getElementById("qrInput");
+
+  iniciarBtn.addEventListener("click", () => {
+    iniciarBtn.classList.add("d-none");
+    detenerBtn.classList.remove("d-none");
+
+    html5QrCode = new Html5Qrcode("qrCamContainer");
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        const cameraId = devices[0].id;
+        html5QrCode.start(
+          cameraId,
+          { fps: 10, qrbox: 250 },
+          (decodedText) => {
+            inputQR.value = decodedText;
+            document.getElementById('btnBuscarQR').click();
+          },
+          () => {}
+        );
+      }
+    }).catch(err => console.error("No se pudo iniciar cámara:", err));
+  });
+
+  detenerBtn.addEventListener("click", () => {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        iniciarBtn.classList.remove("d-none");
+        detenerBtn.classList.add("d-none");
+      });
+    }
+  });
 });
 </script>
 
