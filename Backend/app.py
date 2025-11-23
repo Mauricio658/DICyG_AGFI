@@ -7,6 +7,7 @@ from models import db, Persona
 from auth import auth_bp
 from admin import admin_bp
 from perfil import perfil_bp
+from staff import staff_bp
 
 def create_app():
     app = Flask(__name__)
@@ -36,6 +37,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(perfil_bp)
+    app.register_blueprint(staff_bp)
 
     #============================ PRUEBAS ============================#
     # Ruta de prueba

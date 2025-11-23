@@ -150,7 +150,7 @@
       <section id="sec-qr-scan" class="sec-block">
         <h2 class="section-title">Escanear / Registrar asistencia</h2>
         <p class="text-muted small mb-3">
-          Escanea el QR de la credencial o pega el código.  
+          Selecciona el evento, escanea el QR o pega el código.  
           Si no cambias nada y confirmas, solo registramos su asistencia.  
           Si editas, se guardan los cambios y también se registra asistencia.
         </p>
@@ -158,19 +158,28 @@
         <div class="card card-agfi shadow-sm mb-4">
           <div class="card-body">
             <div class="row g-3">
-              <div class="col-md-6">
+              <div class="col-md-4">
+                <label class="form-label req">Evento</label>
+                <select class="form-select" id="qrEvento">
+                  <option value="">-- Selecciona evento --</option>
+                </select>
+              </div>
+              <div class="col-md-4">
                 <label class="form-label req">ID / QR leído</label>
                 <input type="text" class="form-control" id="qrInput" placeholder="Pega aquí el código leído">
               </div>
-              <div class="col-md-3 d-grid">
-                <button class="btn btn-outline-secondary" id="btnBuscarQR">Buscar persona</button>
+              <div class="col-md-2 d-grid">
+                <button class="btn btn-outline-secondary" id="btnBuscarQR" type="button">
+                  Buscar persona
+                </button>
               </div>
-              <div class="col-md-3 d-grid">
-                <button class="btn btn-outline-success" id="btnMarcarAsistencia">
+              <div class="col-md-2 d-grid">
+                <button class="btn btn-outline-success" id="btnMarcarAsistencia" type="button">
                   Confirmar asistencia
                 </button>
               </div>
             </div>
+            <div class="small mt-2" id="qrMsg"></div>
           </div>
         </div>
 
@@ -251,24 +260,40 @@
       <section id="sec-pase-lista" class="sec-block d-none">
         <h2 class="section-title">Pase de lista rápido</h2>
         <p class="text-muted small mb-3">
-          Usa esta vista si no se puede leer el QR. Selecciona evento y marca quién asistió.
+          Usa esta vista si no se puede leer el QR.  
+          La actualización masiva de asistencia se hace con CSV.
         </p>
 
         <div class="card card-agfi shadow-sm mb-4">
           <div class="card-body">
             <form class="row g-3 align-items-end">
-              <div class="col-md-8">
+              <div class="col-md-4">
                 <label class="form-label req">Evento</label>
                 <select id="paseEvento" class="form-select">
                   <option value="">-- Selecciona evento --</option>
-                  <option value="1">Desayuno Asamblea Ordinaria (15/11/2025)</option>
-                  <option value="2">Networking AGFI Jóvenes (02/12/2025)</option>
                 </select>
               </div>
-              <div class="col-md-4 d-grid">
+              <div class="col-md-2 d-grid">
                 <button type="button" class="btn btn-outline-secondary w-100" id="btnCargarPase">
                   Cargar lista
                 </button>
+              </div>
+              <div class="col-md-3 d-grid">
+                <button type="button" class="btn btn-outline-success w-100" id="btnExportarPase">
+                  Exportar CSV
+                </button>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Importar CSV</label>
+                <div class="input-group">
+                  <input type="file" id="paseCsvFile" class="form-control form-control-sm" accept=".csv">
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="btnImportarPase">
+                    Importar
+                  </button>
+                </div>
+                <div class="form-text">
+                  Usa el CSV exportado para actualizar asistencia en lote.
+                </div>
               </div>
             </form>
           </div>
@@ -277,13 +302,14 @@
         <div class="card card-agfi shadow-sm">
           <div class="card-body">
             <div class="table-responsive">
-              <table class="table align-middle">
+              <table class="table table-sm align-middle">
                 <thead>
                   <tr>
                     <th>Nombre</th>
                     <th>Empresa</th>
                     <th>Clasificación</th>
-                    <th>Asistió</th>
+                    <th>Confirmación</th>
+                    <th>Asistencia</th>
                   </tr>
                 </thead>
                 <tbody id="tablaPaseLista">
@@ -291,13 +317,9 @@
                 </tbody>
               </table>
             </div>
-            <div class="text-end mt-3">
-              <button class="btn btn-success btn-sm" id="btnGuardarPase">
-                Guardar asistencia
-              </button>
-            </div>
           </div>
         </div>
+        <div class="small text-muted mt-2" id="paseListaMsg"></div>
       </section>
 
     </main>
@@ -305,28 +327,33 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function(){
+  const API_BASE = 'http://localhost:5000';
+
   // ========== 1) Sesión / seguridad de rol ==========
   const token = localStorage.getItem('agfi_token');
   const role  = localStorage.getItem('agfi_role');
   const email = localStorage.getItem('agfi_user_email') || 'staff@agfi.mx';
 
-  // Solo dejamos entrar a staff o admin (admin también puede operar aquí si quiere)
-  if(!token || (role!=='staff' && role!=='admin')){
+  if (!token || (role !== 'staff' && role !== 'admin')) {
     window.location.href = 'index.html';
     return;
   }
 
-  document.getElementById('staffNombre').textContent = 'Hola, ' + email;
+  const staffNombre = document.getElementById('staffNombre');
+  if (staffNombre) {
+    staffNombre.textContent = 'Hola, ' + email;
+  }
 
-  // Logout
-  document.getElementById('logoutBtn').addEventListener('click', ()=>{
-    localStorage.removeItem('agfi_token');
-    localStorage.removeItem('agfi_role');
-    window.location.href = 'index.html';
-  });
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', ()=>{
+      localStorage.removeItem('agfi_token');
+      localStorage.removeItem('agfi_role');
+      window.location.href = 'index.html';
+    });
+  }
 
   // ========== 2) Navegación entre secciones ==========
   const sectionButtons = document.querySelectorAll('.nav-link-staff, [data-section].btn-outline-secondary');
@@ -336,111 +363,577 @@
     btn.addEventListener('click',()=>{
       const target = btn.getAttribute('data-section');
 
-      // marcar activo en sidebar
-      document.querySelectorAll('.nav-link-staff').forEach(x=>x.classList.remove('active'));
-      const matchSide = document.querySelector('.nav-link-staff[data-section="'+target+'"]');
-      if(matchSide) matchSide.classList.add('active');
+      document.querySelectorAll('.nav-link-staff').forEach(n=> n.classList.remove('active'));
+      if (btn.classList.contains('nav-link-staff')) {
+        btn.classList.add('active');
+      } else {
+        const sidebarBtn = document.querySelector('.nav-link-staff[data-section="'+target+'"]');
+        if (sidebarBtn) sidebarBtn.classList.add('active');
+      }
 
-      // mostrar sección seleccionada
-      sections.forEach(sec=>sec.classList.add('d-none'));
-      document.getElementById(target).classList.remove('d-none');
+      sections.forEach(sec=>{
+        if (sec.id === target) {
+          sec.classList.remove('d-none');
+        } else {
+          sec.classList.add('d-none');
+        }
+      });
     });
   });
 
-  // ========== 3) ESCANEAR QR ==========
-  document.getElementById('btnBuscarQR').addEventListener('click',()=>{
-    const id = document.getElementById('qrInput').value.trim();
-    if(!id){
-      alert('Pega un código QR/ID.');
+  // ========== 3) Referencias comunes ==========
+  const paseEvento     = document.getElementById('paseEvento');
+  const paseListaMsg   = document.getElementById('paseListaMsg');
+  const tablaPaseLista = document.getElementById('tablaPaseLista');
+  const btnCargarPase  = document.getElementById('btnCargarPase');
+  const btnExportarPase= document.getElementById('btnExportarPase');
+  const btnImportarPase= document.getElementById('btnImportarPase');
+  const paseCsvFile    = document.getElementById('paseCsvFile');
+
+  const selEventoQR    = document.getElementById('qrEvento');
+  const inputQR        = document.getElementById('qrInput');
+  const btnBuscarQR    = document.getElementById('btnBuscarQR');
+  const btnCheckin     = document.getElementById('btnMarcarAsistencia');
+  const btnGuardarYA   = document.getElementById('btnGuardarYAsistencia');
+  const qrMsg          = document.getElementById('qrMsg');
+
+  const inpNombre   = document.getElementById('qrNombre');
+  const inpCorreo   = document.getElementById('qrCorreo');
+  const inpEmpresa  = document.getElementById('qrEmpresa');
+  const inpRol      = document.getElementById('qrRol');
+
+  let estadoActual = {
+    id_asistente: null,
+    id_registro: null,
+    codigo_qr: null,
+    ya_checkin: false,
+    hora_entrada: null
+  };
+
+  // ========== 4) Cargar eventos en selects ==========
+  async function cargarEventosEnSelects() {
+    if (!paseEvento && !selEventoQR) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/eventos`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        const msg = body.message || 'Error al cargar eventos.';
+        if (paseListaMsg) {
+          paseListaMsg.textContent = msg;
+          paseListaMsg.classList.add('text-danger');
+        }
+        if (qrMsg) {
+          qrMsg.textContent = msg;
+          qrMsg.classList.add('text-danger');
+        }
+        return;
+      }
+
+      const eventos = body.eventos || [];
+
+      const fillSelect = (sel)=>{
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- Selecciona evento --</option>';
+        eventos.forEach(ev=>{
+          const opt = document.createElement('option');
+          opt.value = ev.id_evento;
+          opt.textContent = `${ev.nombre} (${ev.fecha})`;
+          sel.appendChild(opt);
+        });
+      };
+
+      fillSelect(paseEvento);
+      fillSelect(selEventoQR);
+
+    } catch (err) {
+      console.error('Error cargando eventos:', err);
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Error de comunicación al cargar eventos.';
+        paseListaMsg.classList.add('text-danger');
+      }
+      if (qrMsg) {
+        qrMsg.textContent = 'Error de comunicación al cargar eventos.';
+        qrMsg.classList.add('text-danger');
+      }
+    }
+  }
+
+  // ========== 5) PASE DE LISTA ==========
+  async function cargarPaseLista() {
+    if (!paseEvento || !tablaPaseLista) return;
+    const idEvento = paseEvento.value;
+    if (paseListaMsg) {
+      paseListaMsg.textContent = '';
+      paseListaMsg.classList.remove('text-danger', 'text-success', 'text-muted');
+    }
+
+    if (!idEvento) {
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Selecciona un evento primero.';
+        paseListaMsg.classList.add('text-danger');
+      }
       return;
     }
 
-    // Simulación de búsqueda por QR/id
-    document.getElementById('qrNombre').value  = 'Invitado ' + id;
-    document.getElementById('qrCorreo').value  = id + '@ejemplo.com';
-    document.getElementById('qrEmpresa').value = 'Empresa Demo';
-    document.getElementById('qrRol').value     = 'estudiante';
-  });
-
-  // marcar asistencia sin cambios
-  document.getElementById('btnMarcarAsistencia').addEventListener('click',()=>{
-    const id = document.getElementById('qrInput').value.trim();
-    if(!id){
-      alert('Sin QR.');
-      return;
-    }
-    // POST /api/asistencia/checkin {id}
-    alert('Asistencia registrada (sin cambios) [simulado].');
-  });
-
-  // guardar cambios + asistencia
-  document.getElementById('btnGuardarYAsistencia').addEventListener('click',()=>{
-    const id = document.getElementById('qrInput').value.trim();
-    // PUT /api/persona/:id con qrNombre, qrCorreo, qrEmpresa, qrRol
-    // luego POST /api/asistencia/checkin {id}
-    alert('Datos actualizados y asistencia registrada [simulado].');
-  });
-
-  // ========== 4) ALTA EXPRESS ==========
-  const altaExpressForm = document.getElementById('formAltaExpress');
-  const msgBox = document.getElementById('altaExpressMsg');
-
-  altaExpressForm.addEventListener('submit',(e)=>{
-    e.preventDefault();
-
-    const nombre = document.getElementById('exNombre').value.trim();
-    const correo = document.getElementById('exCorreo').value.trim();
-    const rol    = document.getElementById('exRol').value;
-
-    if(!nombre || !correo || !rol){
-      msgBox.textContent = 'Faltan datos obligatorios.';
-      msgBox.className = 'text-danger small';
-      return;
-    }
-
-    // POST /api/alta-express
-    // backend debería crear asistente temporal + QR
-    msgBox.textContent = 'Asistente creado y QR generado (simulado).';
-    msgBox.className = 'text-success small';
-
-    altaExpressForm.reset();
-  });
-
-  // ========== 5) PASE DE LISTA RÁPIDO ==========
-  document.getElementById('btnCargarPase').addEventListener('click',()=>{
-    const tbody = document.getElementById('tablaPaseLista');
-
-    // GET /api/eventos/:id/asistentes
-    // Mock demo:
-    tbody.innerHTML = `
-      <tr>
-        <td>María López</td>
-        <td>PEMEX</td>
-        <td>Ingeniero</td>
-        <td><input class="form-check-input" type="checkbox" checked></td>
-      </tr>
-      <tr>
-        <td>Adrián Reyes</td>
-        <td>UNAM</td>
-        <td>Estudiante</td>
-        <td><input class="form-check-input" type="checkbox"></td>
-      </tr>
+    tablaPaseLista.innerHTML = `
+      <tr><td colspan="5" class="text-muted">Cargando pase de lista...</td></tr>
     `;
-  });
 
-  document.getElementById('btnGuardarPase').addEventListener('click',()=>{
-    const rows = document.querySelectorAll('#tablaPaseLista tr');
-    const asistenciaPayload = [];
-    rows.forEach(r=>{
-      const nombre = r.children[0].textContent.trim();
-      const checked = r.querySelector('input[type="checkbox"]').checked;
-      asistenciaPayload.push({ nombre, asistio: checked });
+    try {
+      const res = await fetch(`${API_BASE}/staff/pase_lista?id_evento=${encodeURIComponent(idEvento)}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        tablaPaseLista.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-danger">
+              Error al cargar pase de lista: ${body.message || 'Error desconocido.'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const registros = body.registros || [];
+      if (registros.length === 0) {
+        tablaPaseLista.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-muted">
+              No hay asistentes registrados para este evento.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tablaPaseLista.innerHTML = '';
+      registros.forEach(r=>{
+        const tr = document.createElement('tr');
+        const textoConfirmacion = r.confirmado === true
+          ? 'Sí'
+          : (r.confirmado === false ? 'No' : '—');
+
+        const checked = (r.asistencia_estado === 'si' || r.check_in) ? 'checked' : '';
+
+        tr.innerHTML = `
+          <td>${r.nombre || ''}</td>
+          <td>${r.empresa || ''}</td>
+          <td>${r.rol || ''}</td>
+          <td>${textoConfirmacion}</td>
+          <td>
+            <input type="checkbox"
+                   class="form-check-input"
+                   data-id-registro="${r.id_registro}"
+                   ${checked}
+                   disabled>
+          </td>
+        `;
+        tablaPaseLista.appendChild(tr);
+      });
+
+    } catch (err) {
+      console.error('Error al cargar pase de lista:', err);
+      tablaPaseLista.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-danger">
+            Error de comunicación con el servidor.
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  async function exportarPaseLista() {
+    if (!paseEvento) return;
+    const idEvento = paseEvento.value;
+    if (paseListaMsg) {
+      paseListaMsg.textContent = '';
+      paseListaMsg.classList.remove('text-danger', 'text-success', 'text-muted');
+    }
+
+    if (!idEvento) {
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Selecciona un evento primero para exportar.';
+        paseListaMsg.classList.add('text-danger');
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/pase_lista_csv?id_evento=${encodeURIComponent(idEvento)}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (paseListaMsg) {
+          paseListaMsg.textContent = body.message || 'Error al exportar CSV.';
+          paseListaMsg.classList.add('text-danger');
+        }
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pase_lista_evento_${idEvento}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'CSV exportado correctamente.';
+        paseListaMsg.classList.add('text-success');
+      }
+
+    } catch (err) {
+      console.error('Error al exportar CSV:', err);
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Error de comunicación al exportar.';
+        paseListaMsg.classList.add('text-danger');
+      }
+    }
+  }
+
+  async function importarPaseLista() {
+    if (!paseEvento || !paseCsvFile) return;
+    const idEvento = paseEvento.value;
+    if (paseListaMsg) {
+      paseListaMsg.textContent = '';
+      paseListaMsg.classList.remove('text-danger', 'text-success', 'text-muted');
+    }
+
+    if (!idEvento) {
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Selecciona un evento primero para importar.';
+        paseListaMsg.classList.add('text-danger');
+      }
+      return;
+    }
+
+    if (!paseCsvFile.files || paseCsvFile.files.length === 0) {
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Selecciona un archivo CSV.';
+        paseListaMsg.classList.add('text-danger');
+      }
+      return;
+    }
+
+    const file = paseCsvFile.files[0];
+    const formData = new FormData();
+    formData.append('id_evento', idEvento);
+    formData.append('file', file);
+
+    if (paseListaMsg) {
+      paseListaMsg.textContent = 'Importando CSV...';
+      paseListaMsg.classList.add('text-muted');
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/pase_lista_import`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token
+        },
+        body: formData
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        if (paseListaMsg) {
+          paseListaMsg.textContent = body.message || 'Error al importar CSV.';
+          paseListaMsg.classList.add('text-danger');
+        }
+        return;
+      }
+
+      if (paseListaMsg) {
+        paseListaMsg.textContent = `Importación correcta. Filas: ${
+          body.resumen?.filas_totales || 0
+        }, creados: ${
+          body.resumen?.registros_creados || 0
+        }, actualizados: ${
+          body.resumen?.registros_actualizados || 0
+        }`;
+        paseListaMsg.classList.add('text-success');
+      }
+
+      await cargarPaseLista();
+
+    } catch (err) {
+      console.error('Error al importar CSV:', err);
+      if (paseListaMsg) {
+        paseListaMsg.textContent = 'Error de comunicación al importar.';
+        paseListaMsg.classList.add('text-danger');
+      }
+    }
+  }
+
+  // ========== 6) QR ==========
+  function limpiarFormularioQR() {
+    if (inpNombre)  inpNombre.value  = '';
+    if (inpCorreo)  inpCorreo.value  = '';
+    if (inpEmpresa) inpEmpresa.value = '';
+    if (inpRol)     inpRol.value     = '';
+  }
+
+  async function buscarPorQR() {
+    if (!selEventoQR || !inputQR || !qrMsg) return;
+
+    qrMsg.textContent = '';
+    qrMsg.classList.remove('text-danger', 'text-success', 'text-muted');
+
+    const idEvento = selEventoQR.value;
+    const code = inputQR.value.trim();
+
+    if (!idEvento) {
+      qrMsg.textContent = 'Selecciona un evento.';
+      qrMsg.classList.add('text-danger');
+      return;
+    }
+    if (!code) {
+      qrMsg.textContent = 'Escribe o pega el código del QR.';
+      qrMsg.classList.add('text-danger');
+      return;
+    }
+
+    limpiarFormularioQR();
+    estadoActual = { id_asistente: null, id_registro: null, codigo_qr: code, ya_checkin: false, hora_entrada: null };
+
+    try {
+      const url = `${API_BASE}/staff/qr_lookup?code=${encodeURIComponent(code)}&id_evento=${encodeURIComponent(idEvento)}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        qrMsg.textContent = body.message || 'No se encontró la persona.';
+        qrMsg.classList.add('text-danger');
+        return;
+      }
+
+      const a = body.asistente || {};
+      const reg = body.registro || null;
+      const asis = body.asistencia || null;
+
+      if (inpNombre)  inpNombre.value  = a.nombre  || '';
+      if (inpCorreo)  inpCorreo.value  = a.correo  || '';
+      if (inpEmpresa) inpEmpresa.value = a.empresa || '';
+      if (inpRol)     inpRol.value     = a.rol     || '';
+
+      estadoActual.id_asistente = a.id_asistente;
+      estadoActual.id_registro  = reg ? reg.id_registro : null;
+      estadoActual.codigo_qr    = a.codigo_qr;
+
+      if (asis && asis.hora_entrada) {
+        estadoActual.ya_checkin   = true;
+        estadoActual.hora_entrada = asis.hora_entrada;
+        qrMsg.textContent = 'Esta persona ya tiene hora de entrada registrada.';
+        qrMsg.classList.add('text-muted');
+      } else {
+        qrMsg.textContent = 'Persona localizada. Aún sin registro de hora de entrada.';
+        qrMsg.classList.add('text-success');
+      }
+
+    } catch (err) {
+      console.error('Error en buscarPorQR:', err);
+      qrMsg.textContent = 'Error de comunicación con el servidor.';
+      qrMsg.classList.add('text-danger');
+    }
+  }
+
+  async function marcarAsistenciaSimple() {
+    if (!selEventoQR || !qrMsg) return;
+
+    qrMsg.textContent = '';
+    qrMsg.classList.remove('text-danger', 'text-success', 'text-muted');
+
+    const idEvento = selEventoQR.value;
+    if (!idEvento) {
+      qrMsg.textContent = 'Selecciona un evento.';
+      qrMsg.classList.add('text-danger');
+      return;
+    }
+
+    if (!estadoActual.id_asistente) {
+      qrMsg.textContent = 'Primero busca a la persona por QR.';
+      qrMsg.classList.add('text-danger');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/qr_checkin`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id_evento: idEvento,
+          id_asistente: estadoActual.id_asistente
+        })
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        qrMsg.textContent = body.message || 'Error al registrar asistencia.';
+        qrMsg.classList.add('text-danger');
+        return;
+      }
+
+      const det = body.detalles || {};
+      estadoActual.hora_entrada = det.hora_entrada;
+      estadoActual.ya_checkin   = true;
+
+      qrMsg.textContent = 'Asistencia registrada correctamente.';
+      qrMsg.classList.add('text-success');
+
+    } catch (err) {
+      console.error('Error en marcarAsistenciaSimple:', err);
+      qrMsg.textContent = 'Error de comunicación con el servidor.';
+      qrMsg.classList.add('text-danger');
+    }
+  }
+
+  async function guardarYMarcar() {
+    if (!selEventoQR || !qrMsg) return;
+
+    qrMsg.textContent = '';
+    qrMsg.classList.remove('text-danger', 'text-success', 'text-muted');
+
+    const idEvento = selEventoQR.value;
+    if (!idEvento) {
+      qrMsg.textContent = 'Selecciona un evento.';
+      qrMsg.classList.add('text-danger');
+      return;
+    }
+
+    if (!estadoActual.id_asistente) {
+      qrMsg.textContent = 'Primero busca a la persona por QR.';
+      qrMsg.classList.add('text-danger');
+      return;
+    }
+
+    const payload = {
+      id_evento: idEvento,
+      id_asistente: estadoActual.id_asistente,
+      nombre:   inpNombre ? (inpNombre.value.trim()   || null) : null,
+      correo:   inpCorreo ? (inpCorreo.value.trim()   || null) : null,
+      empresa:  inpEmpresa ? (inpEmpresa.value.trim() || null) : null,
+      rol:      inpRol ? (inpRol.value.trim()         || null) : null,
+      telefono: null,
+      carrera: null,
+      generacion: null,
+      experiencia: null,
+      tipo_sangre: null,
+      alergias: null,
+      medicamentos_actuales: null,
+      padecimientos: null,
+      contacto_emergencia_nombre: null,
+      contacto_emergencia_telefono: null
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/qr_checkin`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        qrMsg.textContent = body.message || 'Error al guardar y registrar asistencia.';
+        qrMsg.classList.add('text-danger');
+        return;
+      }
+
+      const det = body.detalles || {};
+      estadoActual.hora_entrada = det.hora_entrada;
+      estadoActual.ya_checkin   = true;
+
+      qrMsg.textContent = 'Datos guardados y asistencia registrada correctamente.';
+      qrMsg.classList.add('text-success');
+
+    } catch (err) {
+      console.error('Error en guardarYMarcar:', err);
+      qrMsg.textContent = 'Error de comunicación con el servidor.';
+      qrMsg.classList.add('text-danger');
+    }
+  }
+
+  // ========== 7) ALTA EXPRESS (sigue simulado) ==========
+  const altaExpressForm = document.getElementById('formAltaExpress');
+  const altaMsgBox = document.getElementById('altaExpressMsg');
+
+  if (altaExpressForm && altaMsgBox) {
+    altaExpressForm.addEventListener('submit',(e)=>{
+      e.preventDefault();
+      const nombre  = document.getElementById('exNombre').value.trim();
+      const correo  = document.getElementById('exCorreo').value.trim();
+      const empresa = document.getElementById('exEmpresa').value.trim();
+      const rolSel  = document.getElementById('exRol').value;
+
+      if (!nombre || !correo || !rolSel) {
+        altaMsgBox.textContent = 'Llena todos los campos obligatorios.';
+        altaMsgBox.classList.remove('text-success');
+        altaMsgBox.classList.add('text-danger');
+        return;
+      }
+
+      // Aquí después se puede conectar a /staff/alta_express
+      altaMsgBox.textContent = 'Alta express enviada [simulado].';
+      altaMsgBox.classList.remove('text-danger');
+      altaMsgBox.classList.add('text-success');
+      altaExpressForm.reset();
     });
+  }
 
-    // POST /api/asistencia/lote
-    console.log('Asistencia lote simulada:', asistenciaPayload);
-    alert('Asistencia guardada [simulado].');
-  });
+  // ========== 8) Listeners ==========
+  if (btnCargarPase)   btnCargarPase.addEventListener('click', cargarPaseLista);
+  if (btnExportarPase) btnExportarPase.addEventListener('click', exportarPaseLista);
+  if (btnImportarPase) btnImportarPase.addEventListener('click', importarPaseLista);
+
+  if (btnBuscarQR) {
+    btnBuscarQR.addEventListener('click',(e)=>{
+      e.preventDefault();
+      buscarPorQR();
+    });
+  }
+  if (btnCheckin) {
+    btnCheckin.addEventListener('click',(e)=>{
+      e.preventDefault();
+      marcarAsistenciaSimple();
+    });
+  }
+  if (btnGuardarYA) {
+    btnGuardarYA.addEventListener('click',(e)=>{
+      e.preventDefault();
+      guardarYMarcar();
+    });
+  }
+  if (inputQR) {
+    inputQR.addEventListener('keydown',(e)=>{
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        buscarPorQR();
+      }
+    });
+  }
+
+  // ========== 9) Carga inicial ==========
+  cargarEventosEnSelects();
 
 })();
 </script>
