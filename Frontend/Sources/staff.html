@@ -267,36 +267,58 @@
 
         <div class="card card-agfi shadow-sm">
           <div class="card-body">
-            <form id="formAltaExpress" class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label req">Nombre completo</label>
-                <input type="text" class="form-control" id="exNombre" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label req">Correo</label>
-                <input type="email" class="form-control" id="exCorreo" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Empresa / Institución</label>
-                <input type="text" class="form-control" id="exEmpresa">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label req">Clasificación</label>
-                <select class="form-select" id="exRol" required>
-                  <option value="">-- Selecciona --</option>
-                  <option value="ingeniero">Ingeniero ($400)</option>
-                  <option value="becario">Becario ($0)</option>
-                  <option value="estudiante">Estudiante ($200)</option>
-                </select>
-              </div>
+          <form id="formAltaExpress" class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label req">Evento</label>
+              <select class="form-select" id="exEvento" required>
+                <option value="">-- Selecciona evento --</option>
+              </select>
+            </div>
 
-              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
-                <button class="btn btn-danger text-white" id="btnCrearExpress" type="submit">
-                  Dar de alta y generar QR
-                </button>
-                <div class="small text-muted ms-auto" id="altaExpressMsg"></div>
-              </div>
-            </form>
+            <div class="col-md-6">
+              <label class="form-label req">Nombre completo</label>
+              <input type="text" class="form-control" id="exNombre" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label req">Correo</label>
+              <input type="email" class="form-control" id="exCorreo" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Empresa / Institución</label>
+              <input type="text" class="form-control" id="exEmpresa">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label req">Clasificación</label>
+              <select class="form-select" id="exRol" required>
+                <option value="">-- Selecciona --</option>
+                <option value="ingeniero">Ingeniero ($400)</option>
+                <option value="becario">Becario ($0)</option>
+                <option value="estudiante">Estudiante ($200)</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label req">Carrera</label>
+              <input type="text" class="form-control" id="exCarrera" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label req">Generación</label>
+              <input type="text" class="form-control" id="exGeneracion" placeholder="Ej. 2019-2023" required>
+            </div>
+
+            <div class="col-12 d-flex flex-wrap gap-2 mt-3">
+              <button class="btn btn-danger text-white" id="btnCrearExpress" type="submit">
+                Dar de alta y generar QR
+              </button>
+              <div class="small text-muted ms-auto" id="altaExpressMsg"></div>
+            </div>
+          </form>
+
+
           </div>
         </div>
       </section>
@@ -434,7 +456,7 @@
   const btnExportarPase= document.getElementById('btnExportarPase');
   const btnImportarPase= document.getElementById('btnImportarPase');
   const paseCsvFile    = document.getElementById('paseCsvFile');
-
+  const exEvento       = document.getElementById('exEvento');
   const selEventoQR    = document.getElementById('qrEvento');
   const inputQR        = document.getElementById('qrInput');
   const btnBuscarQR    = document.getElementById('btnBuscarQR');
@@ -471,7 +493,7 @@
 
   // ========== 4) Cargar eventos en selects ==========
   async function cargarEventosEnSelects() {
-    if (!paseEvento && !selEventoQR) return;
+  if (!paseEvento && !selEventoQR && !exEvento) return;
 
     try {
       const res = await fetch(`${API_BASE}/staff/eventos`, {
@@ -507,6 +529,8 @@
 
       fillSelect(paseEvento);
       fillSelect(selEventoQR);
+      fillSelect(exEvento);
+
 
     } catch (err) {
       console.error('Error cargando eventos:', err);
@@ -1051,32 +1075,88 @@ function limpiarFormularioQR() {
     }
   }
 
-  // ========== 7) ALTA EXPRESS (sigue simulado) ==========
+  // ========== 7) ALTA EXPRESS (ahora real) ==========
   const altaExpressForm = document.getElementById('formAltaExpress');
   const altaMsgBox = document.getElementById('altaExpressMsg');
 
   if (altaExpressForm && altaMsgBox) {
-    altaExpressForm.addEventListener('submit',(e)=>{
+    altaExpressForm.addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const nombre  = document.getElementById('exNombre').value.trim();
-      const correo  = document.getElementById('exCorreo').value.trim();
-      const empresa = document.getElementById('exEmpresa').value.trim();
-      const rolSel  = document.getElementById('exRol').value;
 
-      if (!nombre || !correo || !rolSel) {
+      const idEvento   = exEvento ? exEvento.value : '';
+      const nombre     = document.getElementById('exNombre').value.trim();
+      const correo     = document.getElementById('exCorreo').value.trim();
+      const empresa    = document.getElementById('exEmpresa').value.trim();
+      const rolSel     = document.getElementById('exRol').value;
+      const carrera    = document.getElementById('exCarrera').value.trim();
+      const generacion = document.getElementById('exGeneracion').value.trim();
+
+      altaMsgBox.textContent = '';
+      altaMsgBox.classList.remove('text-danger', 'text-success', 'text-muted');
+
+      if (!idEvento) {
+        altaMsgBox.textContent = 'Selecciona un evento.';
+        altaMsgBox.classList.add('text-danger');
+        return;
+      }
+      if (!nombre || !correo || !rolSel || !carrera || !generacion) {
         altaMsgBox.textContent = 'Llena todos los campos obligatorios.';
-        altaMsgBox.classList.remove('text-success');
         altaMsgBox.classList.add('text-danger');
         return;
       }
 
-      // Aquí después se puede conectar a /staff/alta_express
-      altaMsgBox.textContent = 'Alta express enviada [simulado].';
-      altaMsgBox.classList.remove('text-danger');
-      altaMsgBox.classList.add('text-success');
-      altaExpressForm.reset();
+      const payload = {
+        id_evento: idEvento,
+        nombre: nombre,
+        correo: correo,
+        empresa: empresa || null,
+        rol: rolSel,
+        carrera: carrera,
+        generacion: generacion
+      };
+
+      try {
+        altaMsgBox.textContent = 'Enviando alta express...';
+        altaMsgBox.classList.add('text-muted');
+
+        const res = await fetch(`${API_BASE}/staff/alta_express`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const body = await res.json().catch(() => ({}));
+
+        altaMsgBox.classList.remove('text-muted');
+
+        if (!res.ok || !body.ok) {
+          altaMsgBox.textContent = body.message || 'Error al dar de alta invitado.';
+          altaMsgBox.classList.add('text-danger');
+          return;
+        }
+
+        const d = body.data || {};
+        altaMsgBox.textContent =
+          `Invitado dado de alta y asistencia registrada. ` +
+          `Código QR: ${d.codigo_qr || ''}`;
+        altaMsgBox.classList.add('text-success');
+
+        altaExpressForm.reset();
+        if (exEvento) {
+          exEvento.value = idEvento;  // dejamos el evento seleccionado
+        }
+
+      } catch (err) {
+        console.error('Error en alta express:', err);
+        altaMsgBox.textContent = 'Error de comunicación con el servidor.';
+        altaMsgBox.classList.add('text-danger');
+      }
     });
   }
+
 
   // ========== 8) Listeners ==========
   if (btnCargarPase)   btnCargarPase.addEventListener('click', cargarPaseLista);

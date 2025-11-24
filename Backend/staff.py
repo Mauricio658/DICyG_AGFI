@@ -13,6 +13,7 @@ from models import (
     Evento,
     Registro,
     Asistencia,
+    InvitadoULM,
 )
 
 staff_bp = Blueprint("staff", __name__, url_prefix="/staff")
@@ -620,5 +621,177 @@ def qr_checkin_staff():
             ),
             "registro_creado": creado_registro,
             "asistencia_creada": created_asistencia
+        }
+    }), 200
+
+# =====================================
+# 8) Alta express de invitados de último momento
+# =====================================
+@staff_bp.route("/alta_express", methods=["POST"])
+@jwt_required()
+def alta_express_staff():
+    identidad = get_jwt_identity() or {}
+    if identidad.get("rol") not in ("staff", "admin"):
+        return jsonify({"ok": False, "message": "No autorizado."}), 403
+
+    data = request.get_json() or {}
+
+    id_evento   = data.get("id_evento")
+    nombre      = (data.get("nombre") or "").strip()
+    correo      = (data.get("correo") or "").strip()
+    empresa     = (data.get("empresa") or "").strip()
+    rol_front   = (data.get("rol") or "").strip()
+    carrera     = (data.get("carrera") or "").strip()
+    generacion  = (data.get("generacion") or "").strip()
+
+    # Validaciones básicas
+    if not id_evento:
+        return jsonify({"ok": False, "message": "id_evento es requerido."}), 400
+    try:
+        id_evento = int(id_evento)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "id_evento inválido."}), 400
+
+    if not nombre or not correo or not rol_front or not carrera or not generacion:
+        return jsonify({
+            "ok": False,
+            "message": "Nombre, correo, clasificación, carrera y generación son obligatorios."
+        }), 400
+
+    evento = Evento.query.get(id_evento)
+    if not evento:
+        return jsonify({"ok": False, "message": "Evento no encontrado."}), 404
+
+    rol_obj = Rol.query.filter_by(nombre_rol=rol_front).first()
+    if not rol_obj:
+        return jsonify({"ok": False, "message": "Rol de asistente no válido."}), 400
+
+    ahora = datetime.utcnow()
+
+    # 1) Persona (se busca por correo)
+    persona = Persona.query.filter_by(correo=correo).first()
+    persona_creada = False
+
+    if not persona:
+        # 👇 Aquí ponemos el password en TEXTO PLANO "SinLogin"
+        persona = Persona(
+            nombre_completo=nombre,
+            correo=correo,
+            password_hash="SinLogin",
+            telefono=None,
+            empresa=empresa or None,
+            puesto=None,
+            carrera=carrera,     # NOT NULL en la base
+            creado_en=ahora
+        )
+        db.session.add(persona)
+        db.session.flush()   # para tener persona.id_persona
+        persona_creada = True
+    else:
+        # Si ya existía, actualizamos datos básicos
+        persona.nombre_completo = nombre
+        if empresa:
+            persona.empresa = empresa
+        if carrera:
+            persona.carrera = carrera
+
+    # 2) Asistente (ligado a persona)
+    asistente = persona.asistente
+    asistente_creado = False
+
+    if not asistente:
+        asistente = Asistente(
+            id_asistente=persona.id_persona,
+            id_rol=rol_obj.id_rol,
+            generacion=generacion,
+            activo=True
+        )
+        db.session.add(asistente)
+        asistente_creado = True
+    else:
+        asistente.id_rol = rol_obj.id_rol
+        if generacion:
+            asistente.generacion = generacion
+
+        # 3) Invitado de último momento (subtipo walk-in)
+    invitado_ulm = InvitadoULM.query.filter_by(
+        id_invitado_ulm=persona.id_persona,
+        id_evento=id_evento
+    ).first()
+    invitado_creado = False
+
+    if not invitado_ulm:
+        invitado_ulm = InvitadoULM(
+            id_invitado_ulm=persona.id_persona,
+            id_evento=id_evento,
+            creado_en=ahora
+        )
+        db.session.add(invitado_ulm)
+        invitado_creado = True
+
+    # 3) Registro (relación con evento)
+    registro = Registro.query.filter_by(
+        id_evento=id_evento,
+        id_asistente=asistente.id_asistente
+    ).first()
+    registro_creado = False
+
+    if not registro:
+        registro = Registro(
+            id_evento=id_evento,
+            id_asistente=asistente.id_asistente,
+            asistencia="si",       # ya está presente
+            invitados=0,
+            confirmado=True,
+            fecha_confirmacion=ahora,
+            comentarios="Alta express (invitado último momento).",
+            creado_en=ahora
+        )
+        db.session.add(registro)
+        registro_creado = True
+    else:
+        registro.asistencia = "si"
+        if registro.confirmado is None:
+            registro.confirmado = True
+            registro.fecha_confirmacion = ahora
+
+    # 4) Asistencia física (check-in)
+    asistencia_obj = Asistencia.query.filter_by(
+        id_registro=registro.id_registro
+    ).first()
+    asistencia_creada = False
+
+    if not asistencia_obj:
+        asistencia_obj = Asistencia(
+            id_registro=registro.id_registro,
+            hora_entrada=ahora,
+            codigo_gafete=f"AGFI-{asistente.id_asistente}",
+            creado_en=ahora
+        )
+        db.session.add(asistencia_obj)
+        asistencia_creada = True
+    else:
+        if not asistencia_obj.hora_entrada:
+            asistencia_obj.hora_entrada = ahora
+        if not asistencia_obj.codigo_gafete:
+            asistencia_obj.codigo_gafete = f"AGFI-{asistente.id_asistente}"
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "message": "Invitado de último momento dado de alta y asistencia registrada.",
+        "data": {
+            "id_persona": persona.id_persona,
+            "id_asistente": asistente.id_asistente,
+            "id_evento": evento.id_evento,
+            "id_registro": registro.id_registro,
+            "id_asistencia": asistencia_obj.id_asistencia,
+            "codigo_qr": f"AGFI-{asistente.id_asistente}",
+            "persona_creada": persona_creada,
+            "asistente_creado": asistente_creado,
+            "invitado_ulm_creado": invitado_creado,
+            "registro_creado": registro_creado,
+            "asistencia_creada": asistencia_creada
         }
     }), 200
