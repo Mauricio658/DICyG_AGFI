@@ -176,7 +176,6 @@ CREATE TABLE asistencia (
   creado_en       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   UNIQUE KEY uq_asistencia_registro (id_registro),
-  UNIQUE KEY uq_codigo_gafete (codigo_gafete),
 
   CONSTRAINT fk_asistencia_registro
     FOREIGN KEY (id_registro)

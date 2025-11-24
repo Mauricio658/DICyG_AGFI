@@ -203,6 +203,36 @@
                 <label class="form-label">Clasificación</label>
                 <input class="form-control" id="qrRol">
               </div>
+              <hr class="my-4">
+
+                <h6 class="fw-semibold mb-3">Información médica (uso interno)</h6>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label">Tipo de sangre</label>
+                    <input class="form-control" id="qrTipoSangre" placeholder="O+, A-, etc.">
+                  </div>
+                  <div class="col-md-8">
+                    <label class="form-label">Alergias</label>
+                    <textarea class="form-control" id="qrAlergias" rows="1"></textarea>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Medicamentos actuales</label>
+                    <textarea class="form-control" id="qrMedicamentos" rows="1"></textarea>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Padecimientos</label>
+                    <textarea class="form-control" id="qrPadecimientos" rows="1"></textarea>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Contacto de emergencia (nombre)</label>
+                    <input class="form-control" id="qrContactoNombre">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Contacto de emergencia (teléfono)</label>
+                    <input class="form-control" id="qrContactoTelefono">
+                  </div>
+                </div>
+
             </div>
             <div class="text-end mt-3">
               <button class="btn btn-danger text-white btn-sm" id="btnGuardarYAsistencia">
@@ -401,6 +431,13 @@
   const inpCorreo   = document.getElementById('qrCorreo');
   const inpEmpresa  = document.getElementById('qrEmpresa');
   const inpRol      = document.getElementById('qrRol');
+  const inpTipoSangre   = document.getElementById('qrTipoSangre');
+  const inpAlergias     = document.getElementById('qrAlergias');
+  const inpMedicamentos = document.getElementById('qrMedicamentos');
+  const inpPadecimientos= document.getElementById('qrPadecimientos');
+  const inpContactoNom  = document.getElementById('qrContactoNombre');
+  const inpContactoTel  = document.getElementById('qrContactoTelefono');
+
 
   let estadoActual = {
     id_asistente: null,
@@ -678,12 +715,20 @@
   }
 
   // ========== 6) QR ==========
-  function limpiarFormularioQR() {
-    if (inpNombre)  inpNombre.value  = '';
-    if (inpCorreo)  inpCorreo.value  = '';
-    if (inpEmpresa) inpEmpresa.value = '';
-    if (inpRol)     inpRol.value     = '';
-  }
+function limpiarFormularioQR() {
+  if (inpNombre)  inpNombre.value  = '';
+  if (inpCorreo)  inpCorreo.value  = '';
+  if (inpEmpresa) inpEmpresa.value = '';
+  if (inpRol)     inpRol.value     = '';
+
+  if (inpTipoSangre)   inpTipoSangre.value   = '';
+  if (inpAlergias)     inpAlergias.value     = '';
+  if (inpMedicamentos) inpMedicamentos.value = '';
+  if (inpPadecimientos)inpPadecimientos.value= '';
+  if (inpContactoNom)  inpContactoNom.value  = '';
+  if (inpContactoTel)  inpContactoTel.value  = '';
+}
+
 
   async function buscarPorQR() {
     if (!selEventoQR || !inputQR || !qrMsg) return;
@@ -729,6 +774,12 @@
       if (inpCorreo)  inpCorreo.value  = a.correo  || '';
       if (inpEmpresa) inpEmpresa.value = a.empresa || '';
       if (inpRol)     inpRol.value     = a.rol     || '';
+      if (inpTipoSangre)   inpTipoSangre.value   = a.tipo_sangre                  || '';
+      if (inpAlergias)     inpAlergias.value     = a.alergias                     || '';
+      if (inpMedicamentos) inpMedicamentos.value = a.medicamentos_actuales        || '';
+      if (inpPadecimientos)inpPadecimientos.value= a.padecimientos                || '';
+      if (inpContactoNom)  inpContactoNom.value  = a.contacto_emergencia_nombre   || '';
+      if (inpContactoTel)  inpContactoTel.value  = a.contacto_emergencia_telefono || '';
 
       estadoActual.id_asistente = a.id_asistente;
       estadoActual.id_registro  = reg ? reg.id_registro : null;
@@ -823,24 +874,27 @@
       return;
     }
 
-    const payload = {
-      id_evento: idEvento,
-      id_asistente: estadoActual.id_asistente,
-      nombre:   inpNombre ? (inpNombre.value.trim()   || null) : null,
-      correo:   inpCorreo ? (inpCorreo.value.trim()   || null) : null,
-      empresa:  inpEmpresa ? (inpEmpresa.value.trim() || null) : null,
-      rol:      inpRol ? (inpRol.value.trim()         || null) : null,
-      telefono: null,
-      carrera: null,
-      generacion: null,
-      experiencia: null,
-      tipo_sangre: null,
-      alergias: null,
-      medicamentos_actuales: null,
-      padecimientos: null,
-      contacto_emergencia_nombre: null,
-      contacto_emergencia_telefono: null
-    };
+   const payload = {
+  id_evento: idEvento,
+  id_asistente: estadoActual.id_asistente,
+
+  nombre:   inpNombre ? (inpNombre.value.trim()   || null) : null,
+  correo:   inpCorreo ? (inpCorreo.value.trim()   || null) : null,
+  empresa:  inpEmpresa ? (inpEmpresa.value.trim() || null) : null,
+  rol:      inpRol ? (inpRol.value.trim()         || null) : null,
+
+  telefono: null,
+  carrera: null,
+  generacion: null,
+  experiencia: null,
+
+  tipo_sangre:                  inpTipoSangre   ? (inpTipoSangre.value.trim()   || null) : null,
+  alergias:                     inpAlergias     ? (inpAlergias.value.trim()     || null) : null,
+  medicamentos_actuales:        inpMedicamentos ? (inpMedicamentos.value.trim() || null) : null,
+  padecimientos:                inpPadecimientos? (inpPadecimientos.value.trim()|| null) : null,
+  contacto_emergencia_nombre:   inpContactoNom  ? (inpContactoNom.value.trim()  || null) : null,
+  contacto_emergencia_telefono: inpContactoTel  ? (inpContactoTel.value.trim()  || null) : null
+};
 
     try {
       const res = await fetch(`${API_BASE}/staff/qr_checkin`, {
