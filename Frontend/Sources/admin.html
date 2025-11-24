@@ -410,46 +410,82 @@
           </div>
         </div>
       </section>
-
       <!-- ALTA EXPRESS (ASISTENTE DE ÚLTIMO MOMENTO) -->
       <section id="sec-alta-express" class="sec-block d-none">
-        <h2 class="section-title">Alta express (último momento)</h2>
+        <h2 class="section-title">Alta express de invitados de último momento</h2>
         <p class="text-muted small mb-3">
-          Da de alta a alguien que llegó sin registro. Se generará su QR y credencial (backend).
+          Crea rápidamente un invitado para un evento específico y márquale asistencia de inmediato.
         </p>
 
-        <div class="card card-agfi shadow-sm">
+        <div class="card card-agfi shadow-sm mb-4">
           <div class="card-body">
-            <form id="formAltaExpress" class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label req">Nombre completo</label>
-                <input type="text" class="form-control" id="exNombre" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label req">Correo</label>
-                <input type="email" class="form-control" id="exCorreo" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Empresa / Institución</label>
-                <input type="text" class="form-control" id="exEmpresa">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label req">Clasificación</label>
-                <select class="form-select" id="exRol" required>
-                  <option value="">-- Selecciona --</option>
-                  <option value="ingeniero">Ingeniero ($400)</option>
-                  <option value="becario">Becario ($0)</option>
-                  <option value="estudiante">Estudiante ($200)</option>
-                </select>
-              </div>
+            <!-- ALTA EXPRESS (ASISTENTE DE ÚLTIMO MOMENTO) -->
+                  <form id="formAltaExpress" class="row g-3">
+                    <div class="col-12">
+                      <p class="text-muted mb-1">
+                        Crea rápidamente un invitado para un evento específico y márquale asistencia de inmediato.
+                      </p>
+                    </div>
 
-              <div class="col-12 d-flex flex-wrap gap-2 mt-3">
-                <button class="btn btn-agfi text-white" id="btnCrearExpress" type="submit">
-                  Dar de alta y generar QR
-                </button>
-                <div class="small text-muted ms-auto" id="altaExpressMsg"></div>
-              </div>
-            </form>
+                    <!-- Evento -->
+                    <div class="col-md-6">
+                      <label class="form-label req">Evento</label>
+                      <select class="form-select" id="exEvento" required>
+                        <option value="">-- Selecciona evento --</option>
+                      </select>
+                    </div>
+
+                    <!-- Clasificación / rol -->
+                      <div class="col-md-6">
+                        <label class="form-label req">Clasificación</label>
+                        <select class="form-select" id="exRol" required>
+                          <option value="">-- Selecciona --</option>
+                          <option value="ingeniero">Ingeniero ($400)</option>
+                          <option value="becario">Becario ($0)</option>
+                          <option value="estudiante">Estudiante ($200)</option>
+                        </select>
+                      </div>
+
+                    <!-- Nombre -->
+                    <div class="col-md-6">
+                      <label class="form-label req">Nombre completo</label>
+                      <input type="text" class="form-control" id="exNombre" placeholder="Nombre del invitado" required>
+                    </div>
+
+                    <!-- Correo -->
+                    <div class="col-md-6">
+                      <label class="form-label req">Correo electrónico</label>
+                      <input type="email" class="form-control" id="exCorreo" placeholder="correo@ejemplo.com" required>
+                    </div>
+
+                    <!-- Empresa -->
+                    <div class="col-md-6">
+                      <label class="form-label">Empresa / Dependencia</label>
+                      <input type="text" class="form-control" id="exEmpresa" placeholder="Opcional">
+                    </div>
+
+                    <!-- Carrera -->
+                    <div class="col-md-6">
+                      <label class="form-label req">Carrera</label>
+                      <input type="text" class="form-control" id="exCarrera" placeholder="Ingeniería..." required>
+                    </div>
+
+                    <!-- Generación -->
+                    <div class="col-md-6">
+                      <label class="form-label req">Generación</label>
+                      <input type="text" class="form-control" id="exGeneracion" placeholder="2021-2025" required>
+                    </div>
+
+                    <div class="col-12">
+                      <button type="submit" class="btn btn-danger" id="btnCrearExpress">
+                        Crear invitado y marcar asistencia
+                      </button>
+                    </div>
+
+                    <div class="col-12">
+                      <div id="altaExpressMsg" class="small"></div>
+                    </div>
+                  </form>
           </div>
         </div>
       </section>
@@ -877,6 +913,10 @@
   </div>
 </div>
 
+<script>
+  const API_BASE = "http://localhost:5000";
+  const token = localStorage.getItem("agfi_token");
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -2036,6 +2076,145 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+</script>
+<script>
+// =========================
+//   CONFIG
+// =========================
+
+
+// =========================
+//   ELEMENTOS DEL FORM
+// =========================
+const exEvento        = document.getElementById("exEvento");
+const exNombre        = document.getElementById("exNombre");
+const exCorreo        = document.getElementById("exCorreo");
+const exEmpresa       = document.getElementById("exEmpresa");
+const exRol           = document.getElementById("exRol");
+const exCarrera       = document.getElementById("exCarrera");
+const exGeneracion    = document.getElementById("exGeneracion");
+
+const altaExpressForm = document.getElementById("formAltaExpress");
+const altaExpressMsg  = document.getElementById("altaExpressMsg");
+
+
+// =========================
+//   1) Cargar eventos en select
+// =========================
+async function cargarEventosAdmin() {
+    if (!exEvento) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/admin/eventos`, {
+            headers: { "Authorization": "Bearer " + token }
+        });
+
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok || !body.ok) {
+            altaExpressMsg.textContent = "No se pudo cargar eventos.";
+            altaExpressMsg.classList.add("text-danger");
+            return;
+        }
+
+        const eventos = body.eventos || [];
+
+        exEvento.innerHTML = `<option value="">-- Selecciona evento --</option>`;
+
+        eventos.forEach(ev => {
+            const opt = document.createElement("option");
+            opt.value = ev.id_evento;
+            opt.textContent = `${ev.nombre} (${ev.fecha})`;
+            exEvento.appendChild(opt);
+        });
+
+    } catch (err) {
+        console.error("Error cargando eventos:", err);
+        altaExpressMsg.textContent = "Error cargando eventos.";
+        altaExpressMsg.classList.add("text-danger");
+    }
+}
+
+
+// =========================
+//   2) Enviar alta express
+// =========================
+async function enviarAltaExpress(e) {
+    e.preventDefault();
+
+    altaExpressMsg.textContent = "";
+    altaExpressMsg.className = "";
+
+    const id_evento   = exEvento.value;
+    const nombre      = exNombre.value.trim();
+    const correo      = exCorreo.value.trim();
+    const empresa     = exEmpresa.value.trim();
+    const rol         = exRol.value;
+    const carrera     = exCarrera.value.trim();
+    const generacion  = exGeneracion.value.trim();
+
+    if (!id_evento || !nombre || !correo || !rol || !carrera || !generacion) {
+        altaExpressMsg.textContent = "Todos los campos marcados son obligatorios.";
+        altaExpressMsg.classList.add("text-danger");
+        return;
+    }
+
+    const payload = {
+        id_evento,
+        nombre,
+        correo,
+        empresa: empresa || null,
+        rol,
+        carrera,
+        generacion
+    };
+
+    try {
+        altaExpressMsg.textContent = "Registrando invitado...";
+        altaExpressMsg.classList.add("text-muted");
+
+        const res = await fetch(`${API_BASE}/admin/alta_express`, {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const body = await res.json().catch(() => ({}));
+        altaExpressMsg.classList.remove("text-muted");
+
+        if (!res.ok || !body.ok) {
+            altaExpressMsg.textContent = body.message || "Error al registrar invitado.";
+            altaExpressMsg.classList.add("text-danger");
+            return;
+        }
+
+        altaExpressMsg.textContent =
+            `Invitado creado y asistencia marcada. Código QR: ${body.data.codigo_qr}`;
+        altaExpressMsg.classList.add("text-success");
+
+        altaExpressForm.reset();
+        exEvento.value = id_evento; // Mantener evento seleccionado
+
+    } catch (err) {
+        console.error("Error:", err);
+        altaExpressMsg.textContent = "Error de comunicación con el servidor.";
+        altaExpressMsg.classList.add("text-danger");
+    }
+}
+
+
+// =========================
+//   LISTENERS
+// =========================
+if (altaExpressForm) {
+    altaExpressForm.addEventListener("submit", enviarAltaExpress);
+}
+
+// Cargar los eventos de inmediato
+cargarEventosAdmin();
 </script>
 
 
