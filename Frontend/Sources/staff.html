@@ -179,6 +179,21 @@
                 </button>
               </div>
             </div>
+                        <div class="row mt-3">
+              <div class="col-md-4">
+                <button class="btn btn-outline-primary w-100" type="button" id="btnToggleCamaraQR">
+                  Usar cámara para leer QR
+                </button>
+              </div>
+            </div>
+
+            <div id="qrCamaraWrapper" class="mt-3" style="display:none;">
+              <div id="qr-reader" style="width:100%; max-width:400px; margin:0 auto;"></div>
+              <p class="text-muted small mt-2">
+                Apunta el código hacia la cámara. Al leerlo, se llenará el campo de ID y se buscará automáticamente.
+              </p>
+            </div>
+
             <div class="small mt-2" id="qrMsg"></div>
           </div>
         </div>
@@ -426,6 +441,9 @@
   const btnCheckin     = document.getElementById('btnMarcarAsistencia');
   const btnGuardarYA   = document.getElementById('btnGuardarYAsistencia');
   const qrMsg          = document.getElementById('qrMsg');
+  const btnToggleCamara   = document.getElementById('btnToggleCamaraQR');
+  const divCamaraWrapper  = document.getElementById('qrCamaraWrapper');
+
 
   const inpNombre   = document.getElementById('qrNombre');
   const inpCorreo   = document.getElementById('qrCorreo');
@@ -446,6 +464,10 @@
     ya_checkin: false,
     hora_entrada: null
   };
+
+  let html5QrCode   = null;
+  let camaraActiva  = false;
+  let ultimaLecturaQR = null;
 
   // ========== 4) Cargar eventos en selects ==========
   async function cargarEventosEnSelects() {
@@ -729,6 +751,108 @@ function limpiarFormularioQR() {
   if (inpContactoTel)  inpContactoTel.value  = '';
 }
 
+  // ====== Lector de QR por cámara ======
+  function onQrScanSuccess(decodedText, decodedResult) {
+    if (!decodedText) return;
+
+    // Evitar disparar muchas veces con el mismo código
+    if (decodedText === ultimaLecturaQR) {
+      return;
+    }
+    ultimaLecturaQR = decodedText;
+
+    if (inputQR) {
+      inputQR.value = decodedText;
+    }
+    // Buscar automáticamente a la persona
+    buscarPorQR();
+  }
+
+  function onQrScanError(errorMessage, error) {
+    // Podemos ignorar errores de lectura continua
+    // console.debug('QR scan error', errorMessage);
+  }
+
+  function toggleCamaraQR() {
+    if (!divCamaraWrapper || typeof Html5Qrcode === 'undefined') {
+      if (qrMsg) {
+        qrMsg.textContent = 'Lector de QR no disponible en este navegador.';
+        qrMsg.classList.add('text-danger');
+      }
+      return;
+    }
+
+    if (!camaraActiva) {
+      // Encender cámara
+      try {
+        if (!html5QrCode) {
+          html5QrCode = new Html5Qrcode("qr-reader");
+        }
+
+        divCamaraWrapper.style.display = 'block';
+        camaraActiva = true;
+        ultimaLecturaQR = null;
+
+        if (btnToggleCamara) {
+          btnToggleCamara.textContent = 'Detener cámara';
+        }
+
+        html5QrCode
+          .start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 }
+            },
+            onQrScanSuccess,
+            onQrScanError
+          )
+          .catch(err => {
+            console.error('Error al iniciar cámara QR:', err);
+            camaraActiva = false;
+            divCamaraWrapper.style.display = 'none';
+            if (btnToggleCamara) {
+              btnToggleCamara.textContent = 'Usar cámara para leer QR';
+            }
+            if (qrMsg) {
+              qrMsg.textContent = 'No se pudo acceder a la cámara.';
+              qrMsg.classList.add('text-danger');
+            }
+          });
+      } catch (err) {
+        console.error('Excepción al iniciar cámara QR:', err);
+        camaraActiva = false;
+        divCamaraWrapper.style.display = 'none';
+        if (btnToggleCamara) {
+          btnToggleCamara.textContent = 'Usar cámara para leer QR';
+        }
+      }
+
+    } else {
+      // Apagar cámara
+      if (html5QrCode) {
+        html5QrCode
+          .stop()
+          .then(() => {
+            html5QrCode.clear();
+            camaraActiva = false;
+            divCamaraWrapper.style.display = 'none';
+            if (btnToggleCamara) {
+              btnToggleCamara.textContent = 'Usar cámara para leer QR';
+            }
+          })
+          .catch(err => {
+            console.error('Error al detener cámara QR:', err);
+          });
+      } else {
+        camaraActiva = false;
+        divCamaraWrapper.style.display = 'none';
+        if (btnToggleCamara) {
+          btnToggleCamara.textContent = 'Usar cámara para leer QR';
+        }
+      }
+    }
+  }
 
   async function buscarPorQR() {
     if (!selEventoQR || !inputQR || !qrMsg) return;
@@ -985,11 +1109,17 @@ function limpiarFormularioQR() {
       }
     });
   }
+    if (btnToggleCamara) {
+    btnToggleCamara.addEventListener('click', toggleCamaraQR);
+  }
 
   // ========== 9) Carga inicial ==========
   cargarEventosEnSelects();
 
 })();
 </script>
+
+<script src="html5-qrcode.min.js"></script>
+
 </body>
 </html>
