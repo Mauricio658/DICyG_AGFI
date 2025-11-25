@@ -912,9 +912,8 @@
     </div>
   </div>
 </div>
-
+<script src="config.js"></script>
 <script>
-  const API_BASE = "http://localhost:5000";
   const token = localStorage.getItem("agfi_token");
 </script>
 
@@ -929,7 +928,7 @@
     return;
   }
 
-  fetch('http://localhost:5000/admin/verify', {
+  fetch(`${API_BASE}/admin/verify`, {
     method: 'GET',
     headers: {
       'Authorization': 'Bearer ' + token
@@ -1039,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     try {
-      const res = await fetch('http://localhost:5000/admin/asistentes', {
+      const res = await fetch(`${API_BASE}/admin/asistentes`, {
         method: 'GET',
         headers: {
           'Authorization': 'Bearer ' + token
@@ -1075,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
      asistentes.forEach(a => {
       const tr = document.createElement('tr');
 
-      const credencialUrl = `http://localhost:5000/admin/credencial/${a.id_asistente}.png`;
+      const credencialUrl = `${API_BASE}/admin/credencial/${a.id_asistente}.png`;
 
       tr.innerHTML = `
         <td>${a.nombre || ''}</td>
@@ -1138,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
       try {
-        const res = await fetch('http://localhost:5000/admin/asistentes', {
+        const res = await fetch(`${API_BASE}/admin/asistentes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1194,7 +1193,7 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     try {
-      const res = await fetch("http://localhost:5000/admin/eventos", {
+      const res = await fetch(`${API_BASE}/admin/eventos`, {
         headers: { "Authorization": "Bearer " + token }
       });
       const body = await res.json();
@@ -1275,7 +1274,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     try {
-      const res = await fetch("http://localhost:5000/admin/eventos", {
+      const res = await fetch(`${API_BASE}/admin/eventos`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1327,7 +1326,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const token = localStorage.getItem("agfi_token");
 
     try {
-      await fetch("http://localhost:5000/auth/logout", {
+      await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
         headers: {
           "Authorization": token ? "Bearer " + token : "",
@@ -1379,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     try {
-      const res = await fetch('http://localhost:5000/admin/buzon', {
+      const res = await fetch(`${API_BASE}/admin/buzon`, {
         method: 'GET',
         headers: {
           'Authorization': 'Bearer ' + token
@@ -1482,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- 1) Cargar lista de eventos en el select ----
   async function cargarEventosEnSelect() {
     try {
-      const res = await fetch('http://localhost:5000/admin/eventos', {
+      const res = await fetch(`${API_BASE}/admin/eventos`, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const body = await res.json().catch(()=> ({}));
@@ -1527,7 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     try {
-      const res = await fetch(`http://localhost:5000/admin/pase_lista?id_evento=${idEvento}`, {
+      const res = await fetch(`${API_BASE}/admin/pase_lista?id_evento=${idEvento}`, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
 
@@ -1607,7 +1606,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch(`http://localhost:5000/admin/pase_lista_csv?id_evento=${idEvento}`, {
+      const res = await fetch(`${API_BASE}/admin/pase_lista_csv?id_evento=${idEvento}`, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
 
@@ -1666,7 +1665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     msgPase.classList.add('text-muted');
 
     try {
-      const res = await fetch('http://localhost:5000/admin/pase_lista_import', {
+      const res = await fetch(`${API_BASE}/admin/pase_lista_import`, {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + token
@@ -1758,7 +1757,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------- 1) Cargar eventos en el select de QR --------
   async function cargarEventosQR() {
     try {
-      const res = await fetch('http://localhost:5000/admin/eventos', {
+      const res = await fetch(`${API_BASE}/admin/eventos`, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const body = await res.json().catch(() => ({}));
@@ -1826,7 +1825,7 @@ document.addEventListener('DOMContentLoaded', () => {
     estadoActual = { id_asistente: null, id_registro: null, codigo_qr: code, ya_checkin: false, hora_entrada: null };
 
     try {
-      const url = `http://localhost:5000/admin/qr_lookup?code=${encodeURIComponent(code)}&id_evento=${encodeURIComponent(idEvento)}`;
+      const url = `${API_BASE}/admin/qr_lookup?code=${encodeURIComponent(code)}&id_evento=${encodeURIComponent(idEvento)}`;
       const res = await fetch(url, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
@@ -1900,7 +1899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/admin/qr_checkin', {
+      const res = await fetch(`${API_BASE}/admin/qr_checkin`, {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + token,
@@ -1974,7 +1973,7 @@ async function guardarYMarcar() {
   };
 
   try {
-    const res = await fetch('http://localhost:5000/admin/qr_checkin', {
+    const res = await fetch(`${API_BASE}/admin/qr_checkin`, {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + token,
