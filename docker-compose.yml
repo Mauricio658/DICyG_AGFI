@@ -36,9 +36,12 @@ services:
     container_name: agfi-web
     ports:
       - "8080:80"
+      - "8443:443"    # HTTPS real (para cámara)
     volumes:
       - ./Frontend:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/certs:ro
+
     restart: unless-stopped
     depends_on:
       - backend
