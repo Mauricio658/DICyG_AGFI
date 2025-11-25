@@ -97,9 +97,41 @@
     color:var(--agfi-rojo);
   }
 
-  @media(max-width:768px){
-    .sidebar{display:none;}
+  /* ===== Sidebar móvil ===== */
+@media(max-width: 768px) {
+  .sidebar {
+    position: fixed !important;
+    left: -260px;
+    top: 0;
+    width: 260px;
+    height: 100vh;
+    background: #fff; /* o el color que tengas */
+    box-shadow: 2px 0 10px rgba(0,0,0,0.15);
+    transition: left .3s ease-in-out;
+    z-index: 9999;
   }
+
+  .sidebar.show {
+    left: 0;
+  }
+
+  /* El contenido ocupa toda la pantalla */
+  .main {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  /* Botón hamburguesa visible solo en móvil */
+  #toggleSidebarBtn {
+    display: inline-block !important;
+  }
+}
+
+/* En desktop, el botón hamburguesa NO aparece */
+#toggleSidebarBtn {
+  display: none;
+}
+
 </style>
 </head>
 <body>
@@ -137,6 +169,9 @@
         <div class="text-muted small">Módulo operativo de acceso</div>
       </div>
       <div class="d-flex flex-wrap gap-2">
+        <button id="toggleSidebarBtn" class="btn btn-outline-secondary me-2">
+          ☰
+        </button>
         <button class="btn btn-sm btn-outline-secondary" data-section="sec-qr-scan">QR</button>
         <button class="btn btn-sm btn-outline-secondary" data-section="sec-alta-express">Alta</button>
         <button class="btn btn-sm btn-outline-secondary" data-section="sec-pase-lista">Lista</button>
@@ -1201,6 +1236,14 @@ function limpiarFormularioQR() {
 </script>
 
 <script src="html5-qrcode.min.js"></script>
+<script>
+  const toggleBtn = document.getElementById("toggleSidebarBtn");
+  const sidebar = document.querySelector(".sidebar");
+
+  toggleBtn.addEventListener("click", () => {
+    sidebar.classList.toggle("show");
+  });
+</script>
 
 </body>
 </html>
