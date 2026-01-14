@@ -1220,3 +1220,70 @@ def alta_express_admin():
             "asistencia_creada": asistencia_creada
         }
     }), 200
+
+
+@admin_bp.route("/credencial_zip/<int:id_asistente>", methods=["GET"])
+def generar_credencial_completa(id_asistente):
+    asistente = Asistente.query.get(id_asistente)
+    if not asistente or not asistente.persona:
+        return jsonify({"ok": False, "message": "Asistente no encontrado."}), 404
+
+    persona = asistente.persona
+
+    # Rutas de las plantillas PNG
+    front_path = "1.png"
+    back_path  = "2.png"
+
+    front = Image.open(front_path).convert("RGBA")
+    back  = Image.open(back_path).convert("RGBA")
+
+    draw_f = ImageDraw.Draw(front)
+    draw_b = ImageDraw.Draw(back)
+
+    #              font = ImageFont.truetype("arial.ttf", 15)
+    font = ImageFont.truetype("dejavu-sans.book.ttf", 15)
+
+    # =============================
+    #  FRENTE — posiciones exactas
+    # =============================
+    draw_f.text((600, 280), persona.nombre_completo or "", fill="black", font=font)
+    draw_f.text((600, 350), asistente.generacion or "", fill="black", font=font)
+
+    miembro_desde = persona.creado_en.strftime("%Y") if persona.creado_en else ""
+    draw_f.text((830, 350), miembro_desde, fill="black", font=font)
+
+    draw_f.text((600, 425), persona.carrera or "", fill="black", font=font)
+
+    # =============================
+    #  REVERSO — QR centrado
+    # =============================
+    qr_text = f"AGFI-{id_asistente}"
+    qr_img = qrcode.make(qr_text).resize((300, 300))
+
+    # pegar QR
+    back.paste(qr_img, (355, 80))
+
+
+    # =============================
+    #  CREAR ZIP CON AMBAS IMÁGENES
+    # =============================
+    buffer_zip = BytesIO()
+    import zipfile
+
+    with zipfile.ZipFile(buffer_zip, "w") as z:
+        fb = BytesIO()
+        front.save(fb, format="PNG")
+        z.writestr(f"credencial_front_{id_asistente}.png", fb.getvalue())
+
+        bb = BytesIO()
+        back.save(bb, format="PNG")
+        z.writestr(f"credencial_back_{id_asistente}.png", bb.getvalue())
+
+    buffer_zip.seek(0)
+
+    return send_file(
+        buffer_zip,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"credencial_{id_asistente}.zip"
+    )
